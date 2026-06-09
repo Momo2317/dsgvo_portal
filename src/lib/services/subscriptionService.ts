@@ -115,7 +115,7 @@ export const subscriptionService = {
     const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://tresorlink.de';
 
     const successUrl = fromChoosePlan
-      ? `${siteUrl}/dashboard?subscription=success`
+      ? `${siteUrl}/payment/success`
       : `${siteUrl}/dashboard/billing?success=true`;
 
     const cancelUrl = fromChoosePlan

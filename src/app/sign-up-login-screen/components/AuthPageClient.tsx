@@ -1,10 +1,11 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
+import { createClient, ensureSessionRestored } from '@/lib/supabase/client';
 import AppLogo from '@/components/ui/AppLogo';
 import {
   Shield,
@@ -78,18 +79,51 @@ const TRUST_FEATURES = [
   },
 ];
 
+async function resolvePostLoginPath(next: string | null): Promise<string> {
+  if (next && next.startsWith('/') && !next.startsWith('//')) {
+    return next;
+  }
+  const { subscriptionService } = await import('@/lib/services/subscriptionService');
+  const sub = await subscriptionService.getSubscription();
+  return sub ? '/dashboard' : '/choose-plan';
+}
+
 export default function AuthPageClient() {
   const router = useRouter();
-  const { signIn, signUp } = useAuth();
+  const searchParams = useSearchParams();
+  const nextPath = searchParams?.get('next') ?? null;
+  const { signIn, signUp, user, loading: authLoading } = useAuth();
   const [activeTab, setActiveTab] = useState<'login' | 'register'>('login');
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [copiedField, setCopiedField] = useState<string | null>(null);
+  const [checkingSession, setCheckingSession] = useState(true);
 
   const loginForm = useForm<LoginFormData>({
-    defaultValues: { email: '', password: '', rememberMe: false },
+    defaultValues: { email: '', password: '', rememberMe: true },
   });
+
+  useEffect(() => {
+    const checkExistingSession = async () => {
+      await ensureSessionRestored();
+      const supabase = createClient();
+      const { data: { user: currentUser } } = await supabase.auth.getUser();
+      if (currentUser) {
+        const destination = await resolvePostLoginPath(nextPath);
+        router.replace(destination);
+        return;
+      }
+      setCheckingSession(false);
+    };
+    if (!authLoading) {
+      if (user) {
+        resolvePostLoginPath(nextPath).then((destination) => router.replace(destination));
+      } else {
+        checkExistingSession();
+      }
+    }
+  }, [authLoading, user, nextPath, router]);
   const registerForm = useForm<RegisterFormData>({
     defaultValues: {
       name: '',
@@ -119,14 +153,8 @@ export default function AuthPageClient() {
     try {
       await signIn(data.email, data.password, data.rememberMe);
       toast.success('Erfolgreich angemeldet. Willkommen zurück!');
-      // Check subscription status
-      const { subscriptionService } = await import('@/lib/services/subscriptionService');
-      const sub = await subscriptionService.getSubscription();
-      if (sub) {
-        router.push('/dashboard');
-      } else {
-        router.push('/choose-plan');
-      }
+      const destination = await resolvePostLoginPath(nextPath);
+      router.push(destination);
       router.refresh();
     } catch (err: any) {
       loginForm.setError('email', {
@@ -163,6 +191,14 @@ export default function AuthPageClient() {
       setIsLoading(false);
     }
   };
+
+  if (checkingSession || authLoading || user) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <Loader2 size={28} className="animate-spin text-primary" />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex">

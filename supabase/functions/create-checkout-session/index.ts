@@ -119,9 +119,11 @@ serve(async (req) => {
         plan,
         billing_interval: interval,
       },
-      success_url:
-        (successUrl || `${siteUrl}/dashboard?subscription=success`) +
-        `&session_id={CHECKOUT_SESSION_ID}`,
+      success_url: (() => {
+        const base = successUrl || `${siteUrl}/payment/success`;
+        const sep = base.includes("?") ? "&" : "?";
+        return `${base}${sep}session_id={CHECKOUT_SESSION_ID}`;
+      })(),
       cancel_url: cancelUrl || `${siteUrl}/dashboard/billing?canceled=true`,
       locale: "de",
     });

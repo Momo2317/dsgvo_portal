@@ -5,7 +5,8 @@ import { useRouter } from 'next/navigation';
 import { Check, X, Zap, Building2, Crown, Loader2, ArrowRight, Shield, LogOut } from 'lucide-react';
 import { subscriptionService, PLAN_PRICES } from '@/lib/services/subscriptionService';
 import type { PlanType, BillingInterval } from '@/lib/services/subscriptionService';
-import { createClient } from '@/lib/supabase/client';
+import { createClient, ensureSessionRestored } from '@/lib/supabase/client';
+import { persistSessionTokens } from '@/lib/supabase/session-storage';
 import AppLogo from '@/components/ui/AppLogo';
 
 const PLAN_CONFIG = [
@@ -83,6 +84,7 @@ export default function ChoosePlanPage() {
 
   useEffect(() => {
     const init = async () => {
+      await ensureSessionRestored();
       const supabase = createClient();
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
@@ -107,6 +109,12 @@ export default function ChoosePlanPage() {
     setCheckoutLoading(key);
     setErrorMsg(null);
     try {
+      const supabase = createClient();
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session) {
+        persistSessionTokens(session, true);
+      }
+
       const result = await subscriptionService.createCheckoutSession(plan, billingInterval, true);
       if (result?.url) {
         window.location.href = result.url;

@@ -14,6 +14,17 @@ function injectTokenFromHeader(request: NextRequest): void {
   request.cookies.set(`sb-${getProjectRef()}-auth-token`, token);
 }
 
+function loginRedirect(request: NextRequest) {
+  const url = request.nextUrl.clone();
+  const returnPath = `${request.nextUrl.pathname}${request.nextUrl.search}`;
+  url.pathname = '/sign-up-login-screen';
+  url.search = '';
+  if (returnPath && returnPath !== '/sign-up-login-screen') {
+    url.searchParams.set('next', returnPath);
+  }
+  return NextResponse.redirect(url);
+}
+
 export async function middleware(request: NextRequest) {
   injectTokenFromHeader(request);
   let supabaseResponse = NextResponse.next({ request });
@@ -42,41 +53,56 @@ export async function middleware(request: NextRequest) {
 
   const pathname = request.nextUrl.pathname;
 
-  // Not logged in → redirect to sign-in
-  if (!user && pathname.startsWith('/dashboard')) {
+  // Public post-payment page — no auth required (session restored client-side)
+  if (pathname.startsWith('/payment/success')) {
+    return supabaseResponse;
+  }
+
+  // Already logged in — skip login screen
+  if (user && pathname.startsWith('/sign-up-login-screen')) {
+    const next = request.nextUrl.searchParams.get('next');
+    if (next && next.startsWith('/') && !next.startsWith('//')) {
+      return NextResponse.redirect(new URL(next, request.url));
+    }
+
+    const { data: subscription } = await supabase
+      .from('subscriptions')
+      .select('status')
+      .eq('user_id', user.id)
+      .in('status', ['active', 'trialing'])
+      .maybeSingle();
+
     const url = request.nextUrl.clone();
-    url.pathname = '/sign-up-login-screen';
+    url.pathname = subscription ? '/dashboard' : '/choose-plan';
+    url.search = '';
     return NextResponse.redirect(url);
   }
 
-  // Not logged in → redirect to sign-in for choose-plan too
+  // Not logged in → redirect to sign-in
+  if (!user && pathname.startsWith('/dashboard')) {
+    return loginRedirect(request);
+  }
+
   if (!user && pathname.startsWith('/choose-plan')) {
-    const url = request.nextUrl.clone();
-    url.pathname = '/sign-up-login-screen';
-    return NextResponse.redirect(url);
+    return loginRedirect(request);
   }
 
   // Logged in but accessing dashboard → check subscription
   if (user && pathname.startsWith('/dashboard')) {
-    // Allow billing page always (so user can subscribe/manage)
     if (pathname.startsWith('/dashboard/billing')) {
       return supabaseResponse;
     }
 
-    // Allow through when returning from a successful Stripe checkout
-    // The dashboard page itself will poll until the subscription is confirmed
     const subscriptionSuccess = request.nextUrl.searchParams.get('subscription') === 'success';
     const hasSessionId = request.nextUrl.searchParams.has('session_id');
     if (subscriptionSuccess || hasSessionId) {
       return supabaseResponse;
     }
 
-    // Allow API verify-payment route (called from client during post-payment confirmation)
     if (pathname.startsWith('/api/verify-payment')) {
       return supabaseResponse;
     }
 
-    // Check for active subscription
     const { data: subscription } = await supabase
       .from('subscriptions')
       .select('status')

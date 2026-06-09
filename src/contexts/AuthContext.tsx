@@ -3,6 +3,7 @@
 
 import { createContext, useContext, useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
+import { clearSessionTokens, persistSessionTokens } from '@/lib/supabase/session-storage';
 
 const AuthContext = createContext<any>({});
 
@@ -57,61 +58,38 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     return data;
   };
 
-  // Email/Password Sign In — rememberMe keeps session in localStorage
   const signIn = async (email: string, password: string, rememberMe = true) => {
-    // Always persist the session so the user stays logged in
     const { data, error } = await supabase.auth.signInWithPassword({
       email,
       password,
-      options: { persistSession: true }
     });
     if (error) throw error;
 
-    // If rememberMe is true, also store the session tokens in localStorage
-    // so they survive cookie restrictions (e.g. iframe / SameSite=None issues)
-    if (rememberMe && data.session) {
-      try {
-        localStorage.setItem('sb_remember_me', 'true');
-        localStorage.setItem('sb_access_token', data.session.access_token);
-        localStorage.setItem('sb_refresh_token', data.session.refresh_token);
-      } catch {
-        // localStorage not available — session will rely on cookies
-      }
+    if (data.session) {
+      persistSessionTokens(data.session, rememberMe);
     } else {
-      try {
-        localStorage.removeItem('sb_remember_me');
-        localStorage.removeItem('sb_access_token');
-        localStorage.removeItem('sb_refresh_token');
-      } catch {}
+      clearSessionTokens();
     }
 
     return data;
   };
 
-  // Sign Out
   const signOut = async () => {
-    try {
-      localStorage.removeItem('sb_remember_me');
-      localStorage.removeItem('sb_access_token');
-      localStorage.removeItem('sb_refresh_token');
-    } catch {}
+    clearSessionTokens();
     const { error } = await supabase.auth.signOut();
     if (error) throw error;
   };
 
-  // Get Current User
   const getCurrentUser = async () => {
     const { data: { user }, error } = await supabase.auth.getUser();
     if (error) throw error;
     return user;
   };
 
-  // Check if Email is Verified
   const isEmailVerified = () => {
     return user?.email_confirmed_at !== null;
   };
 
-  // Get User Profile from Database
   const getUserProfile = async () => {
     if (!user) return null;
     const { data, error } = await supabase
