@@ -16,6 +16,7 @@ const StorageChartInner = dynamic(() => import('./StorageChartInner'), {
 
 interface StorageChartProps {
   files: UploadedFile[];
+  storageLimitGb?: number;
 }
 
 function formatMB(bytes: number): string {
@@ -24,11 +25,10 @@ function formatMB(bytes: number): string {
   return `${mb.toFixed(0)} MB`;
 }
 
-const LIMIT_BYTES = 5 * 1024 * 1024 * 1024; // 5 GB
-
-export default function StorageChart({ files }: StorageChartProps) {
+export default function StorageChart({ files, storageLimitGb = 10 }: StorageChartProps) {
+  const limitBytes = storageLimitGb * 1024 * 1024 * 1024;
   const totalBytes = (files || []).reduce((sum, f) => sum + (f?.fileSize || 0), 0);
-  const percentage = Math.min(100, Math.round((totalBytes / LIMIT_BYTES) * 100));
+  const percentage = Math.min(100, Math.round((totalBytes / limitBytes) * 100));
   const freePercent = 100 - percentage;
 
   const pdfBytes = (files || []).filter((f) => f?.fileType === 'pdf').reduce((s, f) => s + (f?.fileSize || 0), 0);
@@ -63,7 +63,7 @@ export default function StorageChart({ files }: StorageChartProps) {
           <p className="text-2xl font-bold text-foreground tabular-nums">
             {formatMB(totalBytes)}
           </p>
-          <p className="text-xs text-muted-foreground">von 5 GB genutzt</p>
+          <p className="text-xs text-muted-foreground">von {storageLimitGb} GB genutzt</p>
         </div>
 
         {/* Progress bar */}

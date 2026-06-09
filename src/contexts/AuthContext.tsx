@@ -2,10 +2,14 @@
 'use client';
 
 import { createContext, useContext, useEffect, useState } from 'react';
-import { createClient } from '@/lib/supabase/client';
+import { createClient, ensureSessionRestored } from '@/lib/supabase/client';
 import { clearSessionTokens, persistSessionTokens } from '@/lib/supabase/session-storage';
 
 const AuthContext = createContext<any>({});
+
+function linkTeamInvites(supabase: ReturnType<typeof createClient>) {
+  void supabase.rpc('link_team_invites_for_user').then(() => undefined, () => undefined);
+}
 
 export const useAuth = () => {
   const context = useContext(AuthContext);
@@ -22,12 +26,20 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const supabase = createClient();
 
   useEffect(() => {
-    // Get initial session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      setLoading(false);
-    });
+    let mounted = true;
+
+    (async () => {
+      await ensureSessionRestored();
+      const { data: { session } } = await supabase.auth.getSession();
+      if (mounted) {
+        setSession(session);
+        setUser(session?.user ?? null);
+        if (session?.user) {
+          linkTeamInvites(supabase);
+        }
+        setLoading(false);
+      }
+    })();
 
     // Listen for auth changes
     const {
@@ -35,6 +47,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
       setUser(session?.user ?? null);
+      if (session?.user) {
+        linkTeamInvites(supabase);
+      }
       setLoading(false);
     });
 
@@ -49,7 +64,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       options: {
         data: {
           full_name: (metadata as any)?.fullName || '',
-          avatar_url: (metadata as any)?.avatarUrl || ''
+          company: (metadata as any)?.company || '',
+          avatar_url: (metadata as any)?.avatarUrl || '',
         },
         emailRedirectTo: `${window.location.origin}/auth/callback`
       }

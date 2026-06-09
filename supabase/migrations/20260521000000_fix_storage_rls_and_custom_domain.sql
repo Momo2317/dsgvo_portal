@@ -8,6 +8,8 @@
 -- Drop old restrictive storage policies and recreate properly
 DROP POLICY IF EXISTS "anyone_can_upload" ON storage.objects;
 DROP POLICY IF EXISTS "authenticated_can_upload" ON storage.objects;
+DROP POLICY IF EXISTS "authenticated_can_update_uploads" ON storage.objects;
+DROP POLICY IF EXISTS "public_can_read_logos" ON storage.objects;
 DROP POLICY IF EXISTS "owners_can_read_uploads" ON storage.objects;
 DROP POLICY IF EXISTS "owners_can_delete_uploads" ON storage.objects;
 

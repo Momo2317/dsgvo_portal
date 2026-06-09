@@ -3,6 +3,7 @@
 import React, { memo, useMemo } from 'react';
 import AppIcon from './AppIcon';
 import AppImage from './AppImage';
+import { DEFAULT_BRAND_LOGO } from '@/lib/brand';
 
 interface AppLogoProps {
   src?: string;
@@ -13,7 +14,7 @@ interface AppLogoProps {
 }
 
 const AppLogo = memo(function AppLogo({
-  src = '/assets/images/A0BD947E-6179-4BF6-8887-8CDA479A88E0-1779377924383.jpg',
+  src = DEFAULT_BRAND_LOGO,
   iconName = 'SparklesIcon',
   size = 64,
   className = '',
@@ -34,8 +35,7 @@ const AppLogo = memo(function AppLogo({
           alt="TresorLink Logo"
           width={size}
           height={size}
-          className="flex-shrink-0 mix-blend-multiply dark:mix-blend-screen"
-          style={{ background: 'transparent' }}
+          className="flex-shrink-0 object-contain"
           priority={true}
           unoptimized={true}
         />

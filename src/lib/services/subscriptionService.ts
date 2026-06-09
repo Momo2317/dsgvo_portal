@@ -1,10 +1,19 @@
 'use client';
 
 import { createClient } from '@/lib/supabase/client';
+import { getAuthenticatedUser } from '@/lib/supabase/auth-helpers';
+import { accountService } from '@/lib/services/accountService';
+import {
+  PLAN_LIMITS,
+  type PlanType,
+  type PlanLimits,
+} from '@/lib/planLimits';
 
-export type PlanType = 'starter' | 'kanzlei' | 'premium';
+export type { PlanType, PlanLimits };
 export type BillingInterval = 'monthly' | 'yearly';
 export type SubscriptionStatus = 'active' | 'canceled' | 'past_due' | 'trialing' | 'incomplete';
+
+export { PLAN_LIMITS, PLAN_LABELS } from '@/lib/planLimits';
 
 export interface Subscription {
   id: string;
@@ -20,42 +29,6 @@ export interface Subscription {
   createdAt: string;
 }
 
-export interface PlanLimits {
-  maxUsers: number; // -1 = unlimited
-  maxPortals: number; // -1 = unlimited
-  storageGb: number;
-  maxFileSizeMb: number; // -1 = unlimited
-  customDomain: boolean;
-  autoDeleteDays: number;
-}
-
-export const PLAN_LIMITS: Record<PlanType, PlanLimits> = {
-  starter: {
-    maxUsers: 1,
-    maxPortals: 1,
-    storageGb: 10,
-    maxFileSizeMb: 20,
-    customDomain: false,
-    autoDeleteDays: 14,
-  },
-  kanzlei: {
-    maxUsers: 5,
-    maxPortals: 5,
-    storageGb: 50,
-    maxFileSizeMb: 100,
-    customDomain: true,
-    autoDeleteDays: 14,
-  },
-  premium: {
-    maxUsers: -1,
-    maxPortals: -1,
-    storageGb: 250,
-    maxFileSizeMb: -1,
-    customDomain: true,
-    autoDeleteDays: 14,
-  },
-};
-
 export const PLAN_PRICES = {
   starter: { monthly: 19, yearly: 190 },
   kanzlei: { monthly: 49, yearly: 490 },
@@ -65,15 +38,16 @@ export const PLAN_PRICES = {
 export const subscriptionService = {
   async getSubscription(): Promise<Subscription | null> {
     const supabase = createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return null;
+    const planOwnerId = await accountService.getPlanOwnerUserId();
+    if (!planOwnerId) return null;
 
     const { data, error } = await supabase
       .from('subscriptions')
       .select('*')
-      .eq('user_id', user.id)
+      .eq('user_id', planOwnerId)
       .in('status', ['active', 'trialing'])
-      .order('created_at', { ascending: false })
+      .order('updated_at', { ascending: false })
+      .limit(1)
       .maybeSingle();
 
     if (error || !data) return null;
@@ -109,14 +83,14 @@ export const subscriptionService = {
     fromChoosePlan = false
   ): Promise<{ url: string } | null> {
     const supabase = createClient();
-    const { data: { user } } = await supabase.auth.getUser();
+    const user = await getAuthenticatedUser();
     if (!user) return null;
 
     const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://tresorlink.de';
 
     const successUrl = fromChoosePlan
       ? `${siteUrl}/payment/success`
-      : `${siteUrl}/dashboard/billing?success=true`;
+      : `${siteUrl}/dashboard/billing`;
 
     const cancelUrl = fromChoosePlan
       ? `${siteUrl}/choose-plan?canceled=true`
@@ -146,6 +120,36 @@ export const subscriptionService = {
 
     if (!(data as any)?.url) {
       throw new Error('No checkout URL returned from server');
+    }
+
+    return { url: (data as any).url };
+  },
+
+  async createBillingPortalSession(): Promise<{ url: string }> {
+    const supabase = createClient();
+    const user = await getAuthenticatedUser();
+    if (!user) throw new Error('Nicht angemeldet');
+
+    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://tresorlink.de';
+
+    const { data, error } = await supabase.functions.invoke('create-portal-session', {
+      body: {
+        userId: user.id,
+        returnUrl: `${siteUrl}/dashboard/billing`,
+      },
+    });
+
+    if (error) {
+      const errMsg =
+        (data as any)?.error ||
+        (error as any)?.context?.error ||
+        error.message ||
+        'Portal konnte nicht geöffnet werden';
+      throw new Error(errMsg);
+    }
+
+    if (!(data as any)?.url) {
+      throw new Error('Keine Portal-URL erhalten');
     }
 
     return { url: (data as any).url };

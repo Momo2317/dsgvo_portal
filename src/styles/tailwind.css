@@ -166,3 +166,63 @@
     border: 1px solid rgba(255, 255, 255, 0.6);
   }
 }
+
+@layer components {
+  .page-icon {
+    @apply w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0;
+  }
+
+  .ui-card {
+    @apply bg-card border border-border rounded-xl shadow-card;
+  }
+
+  .ui-card-padded {
+    @apply bg-card border border-border rounded-xl shadow-card p-5;
+  }
+
+  .ui-card-divided {
+    @apply bg-card border border-border rounded-xl shadow-card divide-y divide-border overflow-hidden;
+  }
+
+  .ui-input {
+    @apply w-full px-3 py-2.5 text-sm border border-border rounded-lg bg-background text-foreground transition-all;
+  }
+
+  .ui-input:focus {
+    outline: none;
+    border-color: var(--primary);
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary) 25%, transparent);
+  }
+
+  .ui-input-readonly {
+    @apply w-full px-3 py-2.5 text-sm border border-border rounded-lg bg-muted text-muted-foreground cursor-not-allowed;
+  }
+
+  .ui-btn {
+    @apply inline-flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium rounded-lg transition-all disabled:opacity-60 disabled:cursor-not-allowed;
+  }
+
+  .ui-btn-primary {
+    @apply inline-flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium rounded-lg transition-all disabled:opacity-60 disabled:cursor-not-allowed bg-primary text-primary-foreground hover:opacity-90 active:scale-[0.98];
+  }
+
+  .ui-btn-secondary {
+    @apply inline-flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium rounded-lg transition-all disabled:opacity-60 disabled:cursor-not-allowed border border-border text-foreground hover:bg-muted;
+  }
+
+  .ui-btn-sm {
+    @apply inline-flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg transition-all disabled:opacity-60;
+  }
+
+  .ui-alert {
+    @apply flex items-start gap-3 p-4 rounded-xl border;
+  }
+
+  .ui-section-title {
+    @apply text-sm font-bold text-foreground flex items-center gap-2;
+  }
+
+  .ui-grid-cards {
+    @apply grid grid-cols-1 md:grid-cols-3 gap-5;
+  }
+}

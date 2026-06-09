@@ -14,8 +14,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
 
   return (
-    <div className="min-h-screen bg-background flex">
-      {/* Sidebar */}
+    <div className="min-h-screen bg-background">
       <DashboardSidebar
         collapsed={sidebarCollapsed}
         onToggle={() => setSidebarCollapsed(!sidebarCollapsed)}
@@ -23,7 +22,6 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
         onMobileClose={() => setMobileSidebarOpen(false)}
       />
 
-      {/* Mobile overlay */}
       {mobileSidebarOpen && (
         <div
           className="fixed inset-0 bg-foreground/20 z-20 lg:hidden"
@@ -31,13 +29,15 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
         />
       )}
 
-      {/* Main content */}
       <div
-        className="flex-1 flex flex-col min-w-0 transition-all duration-300"
-        style={{ marginLeft: 0 }}
+        className={`flex flex-col min-h-screen transition-[padding] duration-300 ${
+          sidebarCollapsed ? 'lg:pl-[4.5rem]' : 'lg:pl-60'
+        }`}
       >
         <DashboardTopbar onMobileMenuToggle={() => setMobileSidebarOpen(true)} />
-        {children ?? <DashboardContent />}
+        <div className="flex-1 overflow-y-auto">
+          {children ?? <DashboardContent />}
+        </div>
       </div>
     </div>
   );

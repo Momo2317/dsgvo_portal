@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import AppLogo from '@/components/ui/AppLogo';
 import { useAuth } from '@/contexts/AuthContext';
+import { useAccount } from '@/contexts/AccountContext';
 import {
   LayoutDashboard,
   Files,
@@ -17,6 +18,8 @@ import {
   LogOut,
   X,
   CreditCard,
+  Link2,
+  Users,
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -37,6 +40,8 @@ const NAV_ITEMS = [
   {
     group: 'Portal',
     items: [
+      { href: '/dashboard/portals', icon: Link2, label: 'Upload-Portale', badge: null },
+      { href: '/dashboard/team', icon: Users, label: 'Team', badge: null },
       { href: '/dashboard/notifications', icon: Bell, label: 'Benachrichtigungen', badge: null },
     ],
   },
@@ -59,7 +64,14 @@ export default function DashboardSidebar({
 }: SidebarProps) {
   const pathname = usePathname();
   const { user, signOut } = useAuth();
+  const { isTeamMember } = useAccount();
   const router = useRouter();
+
+  const ownerOnlyHrefs = new Set([
+    '/dashboard/portals',
+    '/dashboard/team',
+    '/dashboard/billing',
+  ]);
 
   const initials = user?.email?.substring(0, 2).toUpperCase() || '??';
   const email = user?.email || '';
@@ -74,29 +86,36 @@ export default function DashboardSidebar({
   const sidebarContent = (
     <div className="flex flex-col h-full">
       {/* Logo */}
-      <div
-        className={`flex items-center h-16 px-4 border-b border-border flex-shrink-0 ${
-          collapsed ? 'justify-center' : 'justify-between'
-        }`}
-      >
-        {!collapsed && (
-          <div className="flex items-center gap-2.5">
-            <AppLogo size={32} />
-            <span className="font-bold text-base text-foreground tracking-tight">
+      {collapsed ? (
+        <div className="flex flex-col items-center gap-2 py-4 px-2 border-b border-border flex-shrink-0">
+          <Link href="/dashboard" title="TresorLink Dashboard">
+            <AppLogo size={44} />
+          </Link>
+          <button
+            onClick={onToggle}
+            className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-all"
+            title="Sidebar erweitern"
+          >
+            <ChevronRight size={18} />
+          </button>
+        </div>
+      ) : (
+        <div className="flex items-center justify-between h-16 px-4 border-b border-border flex-shrink-0">
+          <Link href="/dashboard" className="flex items-center gap-2.5 min-w-0">
+            <AppLogo size={36} />
+            <span className="font-bold text-base text-foreground tracking-tight truncate">
               TresorLink
             </span>
-          </div>
-        )}
-        {collapsed && <AppLogo size={32} />}
-        <button
-          onClick={onToggle}
-          className={`p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-all ${
-            collapsed ? 'hidden lg:flex' : 'flex'
-          }`}
-        >
-          {collapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
-        </button>
-      </div>
+          </Link>
+          <button
+            onClick={onToggle}
+            className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-all flex-shrink-0"
+            title="Sidebar einklappen"
+          >
+            <ChevronLeft size={16} />
+          </button>
+        </div>
+      )}
 
       {/* Nav */}
       <nav className="flex-1 overflow-y-auto py-4 px-2">
@@ -108,25 +127,27 @@ export default function DashboardSidebar({
               </p>
             )}
             <div className="space-y-0.5">
-              {group.items.map((item) => {
+              {group.items
+                .filter((item) => !isTeamMember || !ownerOnlyHrefs.has(item.href))
+                .map((item) => {
                 const isActive = pathname === item.href;
                 return (
                   <Link
                     key={`nav-${item.href}`}
                     href={item.href}
+                    onClick={onMobileClose}
                     className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all group relative ${
                       isActive
-                        ? 'bg-primary/10 text-primary' :'text-muted-foreground hover:text-foreground hover:bg-muted'
-                    } ${collapsed ? 'justify-center' : ''}`}
+                        ? 'bg-primary/10 text-primary'
+                        : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+                    } ${collapsed ? 'justify-center px-2' : ''}`}
                     title={collapsed ? item.label : undefined}
                   >
                     <item.icon
                       size={18}
                       className={`flex-shrink-0 ${isActive ? 'text-primary' : ''}`}
                     />
-                    {!collapsed && (
-                      <span className="flex-1">{item.label}</span>
-                    )}
+                    {!collapsed && <span className="flex-1">{item.label}</span>}
                   </Link>
                 );
               })}
@@ -166,10 +187,10 @@ export default function DashboardSidebar({
 
   return (
     <>
-      {/* Desktop sidebar */}
+      {/* Desktop sidebar — fixed, full viewport height */}
       <aside
-        className={`hidden lg:flex flex-col bg-card border-r border-border flex-shrink-0 sidebar-transition shadow-sidebar ${
-          collapsed ? 'w-16' : 'w-60'
+        className={`hidden lg:flex fixed inset-y-0 left-0 z-40 flex-col h-screen bg-card border-r border-border sidebar-transition shadow-sidebar ${
+          collapsed ? 'w-[4.5rem]' : 'w-60'
         }`}
       >
         {sidebarContent}
@@ -177,7 +198,7 @@ export default function DashboardSidebar({
 
       {/* Mobile drawer */}
       <aside
-        className={`fixed inset-y-0 left-0 z-30 w-64 bg-card border-r border-border flex flex-col lg:hidden sidebar-transition shadow-modal ${
+        className={`fixed inset-y-0 left-0 z-30 w-64 bg-card border-r border-border flex flex-col h-screen lg:hidden sidebar-transition shadow-modal ${
           mobileOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
       >

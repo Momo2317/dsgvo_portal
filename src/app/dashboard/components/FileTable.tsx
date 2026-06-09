@@ -253,7 +253,7 @@ export default function FileTable({ files, onFilesChange }: FileTableProps) {
 
   return (
     <>
-      <div className="bg-card rounded-xl border border-border shadow-card">
+      <div className="ui-card overflow-hidden">
         {/* Table header */}
         <div className="p-4 border-b border-border flex flex-col sm:flex-row sm:items-center gap-3">
           <div className="flex-1">

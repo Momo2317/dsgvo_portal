@@ -2,8 +2,10 @@
 
 import React, { useState, useEffect } from 'react';
 import DashboardLayout from '../components/DashboardLayout';
+import { DashboardPage, PageHeader } from '@/components/dashboard/DashboardPage';
 import { Bell, CheckCircle2, FileUp, Trash2, Clock, Mail, Settings } from 'lucide-react';
-import { workspaceService, fileService, brandingService } from '@/lib/services/portalService';
+import { fileService, brandingService } from '@/lib/services/portalService';
+import { useWorkspace } from '@/contexts/WorkspaceContext';
 import Link from 'next/link';
 
 interface Notification {
@@ -16,15 +18,17 @@ interface Notification {
 }
 
 export default function NotificationsPage() {
+  const { activeWorkspace, loading: wsLoading } = useWorkspace();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(true);
   const [notifyEmail, setNotifyEmail] = useState<string | null>(null);
 
   useEffect(() => {
     const load = async () => {
+      if (wsLoading) return;
       try {
-        const ws = await workspaceService.getMyWorkspace();
-        if (!ws) { setLoading(false); return; }
+        if (!activeWorkspace) { setLoading(false); return; }
+        const ws = activeWorkspace;
 
         const [files, branding] = await Promise.all([
           fileService.getFiles(ws.id),
@@ -52,7 +56,7 @@ export default function NotificationsPage() {
       }
     };
     load();
-  }, []);
+  }, [activeWorkspace?.id, wsLoading]);
 
   const markAllRead = () => {
     setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
@@ -68,30 +72,20 @@ export default function NotificationsPage() {
 
   return (
     <DashboardLayout>
-      <main className="flex-1 overflow-y-auto">
-        <div className="max-w-3xl mx-auto px-4 lg:px-6 py-6">
-          <div className="flex items-center justify-between mb-6">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
-                <Bell size={20} className="text-primary" />
-              </div>
-              <div>
-                <h1 className="text-2xl font-bold text-foreground">Benachrichtigungen</h1>
-                <p className="text-sm text-muted-foreground">
-                  {unreadCount > 0 ? `${unreadCount} ungelesen` : 'Alle gelesen'}
-                </p>
-              </div>
-            </div>
-            {unreadCount > 0 && (
-              <button
-                onClick={markAllRead}
-                className="flex items-center gap-2 px-3 py-1.5 text-xs font-medium text-primary border border-primary/30 rounded-lg hover:bg-primary/5 transition-all"
-              >
+      <DashboardPage width="narrow">
+        <PageHeader
+          icon={<Bell size={20} />}
+          title="Benachrichtigungen"
+          description={unreadCount > 0 ? `${unreadCount} ungelesen` : 'Alle gelesen'}
+          action={
+            unreadCount > 0 ? (
+              <button onClick={markAllRead} className="ui-btn-sm text-primary border border-primary/30 hover:bg-primary/5">
                 <CheckCircle2 size={13} />
                 Alle als gelesen markieren
               </button>
-            )}
-          </div>
+            ) : undefined
+          }
+        />
 
           {/* Email Notification Status Banner */}
           <div className={`flex items-start gap-3 p-4 rounded-xl border mb-6 ${
@@ -129,13 +123,13 @@ export default function NotificationsPage() {
               <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
             </div>
           ) : notifications.length === 0 ? (
-            <div className="text-center py-20 bg-card border border-border rounded-2xl">
+            <div className="ui-card-padded text-center py-16">
               <Bell size={40} className="text-muted-foreground mx-auto mb-3 opacity-40" />
               <p className="text-sm font-medium text-foreground">Keine Benachrichtigungen</p>
               <p className="text-xs text-muted-foreground mt-1">Neue Uploads erscheinen hier</p>
             </div>
           ) : (
-            <div className="bg-card border border-border rounded-2xl divide-y divide-border overflow-hidden">
+            <div className="ui-card-divided">
               {notifications.map((n) => (
                 <div
                   key={n.id}
@@ -160,8 +154,7 @@ export default function NotificationsPage() {
               ))}
             </div>
           )}
-        </div>
-      </main>
+      </DashboardPage>
     </DashboardLayout>
   );
 }

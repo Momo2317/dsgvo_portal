@@ -2,6 +2,7 @@
 
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import AppLogo from '@/components/ui/AppLogo';
+import { DEFAULT_BRAND_LOGO } from '@/lib/brand';
 import {
   Upload,
   Shield,
@@ -83,6 +84,9 @@ export default function ClientPortalPage({ slug }: ClientPortalPageProps) {
   const [portalNotFound, setPortalNotFound] = useState(false);
   const [maxFileSizeMb, setMaxFileSizeMb] = useState(DEFAULT_MAX_SIZE_MB);
   const [maxFileSizeBytes, setMaxFileSizeBytes] = useState(DEFAULT_MAX_SIZE_BYTES);
+  const [storageUsedBytes, setStorageUsedBytes] = useState(0);
+  const [storageLimitBytes, setStorageLimitBytes] = useState(10 * 1024 * 1024 * 1024);
+  const [planAllowsCustomDomain, setPlanAllowsCustomDomain] = useState(false);
 
   const [files, setFiles] = useState<UploadFile[]>([]);
   const [isDragOver, setIsDragOver] = useState(false);
@@ -112,10 +116,12 @@ export default function ClientPortalPage({ slug }: ClientPortalPageProps) {
               setMaxFileSizeMb(limits.maxFileSizeMb);
               setMaxFileSizeBytes(limits.maxFileSizeMb * 1024 * 1024);
             } else if (limits.maxFileSizeMb === -1) {
-              // Unlimited — set a very high practical limit
               setMaxFileSizeMb(5000);
               setMaxFileSizeBytes(5000 * 1024 * 1024);
             }
+            if (limits.storageUsedBytes != null) setStorageUsedBytes(limits.storageUsedBytes);
+            if (limits.storageLimitBytes) setStorageLimitBytes(limits.storageLimitBytes);
+            setPlanAllowsCustomDomain(!!limits.customDomain);
           }
         } catch {
           // Use defaults if limits fetch fails
@@ -134,6 +140,10 @@ export default function ClientPortalPage({ slug }: ClientPortalPageProps) {
       const fileArray = Array.from(rawFiles);
       const rejected: string[] = [];
       const valid: UploadFile[] = [];
+      const pendingBytes = files
+        .filter((f) => f.status === 'pending' || f.status === 'uploading')
+        .reduce((sum, f) => sum + f.file.size, 0);
+      let batchBytes = 0;
 
       fileArray.forEach((file) => {
         if (!ALLOWED_TYPES.includes(file.type)) {
@@ -144,6 +154,11 @@ export default function ClientPortalPage({ slug }: ClientPortalPageProps) {
           rejected.push(`${file.name} — Datei überschreitet ${maxFileSizeMb} MB Limit (${formatBytes(file.size)})`);
           return;
         }
+        if (storageUsedBytes + pendingBytes + batchBytes + file.size > storageLimitBytes) {
+          rejected.push(`${file.name} — Speicherlimit des Portals erreicht`);
+          return;
+        }
+        batchBytes += file.size;
         const id = `upload-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
         valid.push({
           id,
@@ -159,7 +174,7 @@ export default function ClientPortalPage({ slug }: ClientPortalPageProps) {
       setRejectedFiles(rejected);
       setFiles((prev) => [...prev, ...valid]);
     },
-    [maxFileSizeBytes, maxFileSizeMb]
+    [maxFileSizeBytes, maxFileSizeMb, storageUsedBytes, storageLimitBytes, files]
   );
 
   const handleDrop = useCallback(
@@ -261,9 +276,10 @@ export default function ClientPortalPage({ slug }: ClientPortalPageProps) {
 
   // Use custom domain if configured, otherwise fall back to default portal URL
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || '';
-  const portalBaseUrl = branding?.customDomain
-    ? `https://${branding.customDomain}`
-    : `${siteUrl}/u/${slug}`;
+  const portalBaseUrl =
+    planAllowsCustomDomain && branding?.customDomain
+      ? `https://${branding.customDomain}`
+      : `${siteUrl}/u/${slug}`;
 
   if (portalLoading) {
     return (
@@ -298,16 +314,12 @@ export default function ClientPortalPage({ slug }: ClientPortalPageProps) {
       <header className="bg-card border-b border-border px-4 py-4">
         <div className="max-w-2xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-3">
-            {branding?.logoUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={branding.logoUrl} alt="Firmenlogo" className="w-10 h-10 object-contain rounded-lg" />
-            ) : (
-              <div className="w-10 h-10 rounded-lg border flex items-center justify-center" style={{ backgroundColor: `${accentColor}1a`, borderColor: `${accentColor}33` }}>
-                <span className="text-sm font-bold" style={{ color: accentColor }}>
-                  {workspace?.slug?.substring(0, 2).toUpperCase() || 'KM'}
-                </span>
-              </div>
-            )}
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={branding?.logoUrl || DEFAULT_BRAND_LOGO}
+              alt="Portal-Logo"
+              className="w-10 h-10 object-contain rounded-lg"
+            />
             <div>
               <p className="text-sm font-bold text-foreground">{companyName}</p>
               <p className="text-xs text-muted-foreground">Sicheres Datei-Upload-Portal</p>
@@ -462,7 +474,7 @@ export default function ClientPortalPage({ slug }: ClientPortalPageProps) {
                 onDragOver={handleDragOver}
                 onDragLeave={handleDragLeave}
                 onClick={() => uploadState !== 'uploading' && fileInputRef.current?.click()}
-                className={`relative border-2 border-dashed rounded-2xl p-10 text-center transition-all cursor-pointer ${
+                className={`relative border-2 border-dashed rounded-xl p-10 text-center transition-all cursor-pointer ${
                   isDragOver ? 'border-current' : 'border-border hover:border-current/50'
                 } ${uploadState === 'uploading' ? 'pointer-events-none opacity-60' : ''}`}
                 style={isDragOver ? { borderColor: accentColor, backgroundColor: `${accentColor}0d` } : {}}
@@ -478,7 +490,7 @@ export default function ClientPortalPage({ slug }: ClientPortalPageProps) {
                 />
 
                 <div
-                  className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4 transition-all"
+                  className="w-16 h-16 rounded-xl flex items-center justify-center mx-auto mb-4 transition-all"
                   style={{ backgroundColor: isDragOver ? `${accentColor}33` : `${accentColor}1a` }}
                 >
                   <Upload

@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import DashboardLayout from '../components/DashboardLayout';
+import { DashboardPage, PageHeader } from '@/components/dashboard/DashboardPage';
 import { HelpCircle, ChevronDown, ChevronUp, ExternalLink, Mail, MessageCircle, BookOpen } from 'lucide-react';
 
 interface FAQ {
@@ -53,20 +54,14 @@ export default function HelpPage() {
 
   return (
     <DashboardLayout>
-      <main className="flex-1 overflow-y-auto">
-        <div className="max-w-3xl mx-auto px-4 lg:px-6 py-6">
-          <div className="flex items-center gap-3 mb-6">
-            <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
-              <HelpCircle size={20} className="text-primary" />
-            </div>
-            <div>
-              <h1 className="text-2xl font-bold text-foreground">Hilfe & Support</h1>
-              <p className="text-sm text-muted-foreground">Häufige Fragen und Kontaktmöglichkeiten</p>
-            </div>
-          </div>
+      <DashboardPage width="narrow">
+        <PageHeader
+          icon={<HelpCircle size={20} />}
+          title="Hilfe & Support"
+          description="Häufige Fragen und Kontaktmöglichkeiten"
+        />
 
-          {/* Quick links */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-8">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             {[
               { icon: <BookOpen size={16} />, label: 'Dokumentation', sub: 'Vollständige Anleitung', href: '#' },
               { icon: <Mail size={16} />, label: 'E-Mail Support', sub: 'support@tresorlink.de', href: 'mailto:support@tresorlink.de' },
@@ -75,7 +70,7 @@ export default function HelpPage() {
               <a
                 key={item.label}
                 href={item.href}
-                className="flex items-center gap-3 p-4 bg-card border border-border rounded-xl hover:bg-muted transition-all group"
+                className="ui-card-padded flex items-center gap-3 hover:bg-muted transition-all group"
               >
                 <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center text-primary flex-shrink-0">
                   {item.icon}
@@ -91,7 +86,7 @@ export default function HelpPage() {
 
           {/* FAQ */}
           <h2 className="text-sm font-bold text-foreground mb-3">Häufig gestellte Fragen</h2>
-          <div className="bg-card border border-border rounded-2xl divide-y divide-border overflow-hidden">
+          <div className="ui-card-divided">
             {FAQS.map((faq) => (
               <div key={faq.id}>
                 <button
@@ -113,8 +108,7 @@ export default function HelpPage() {
               </div>
             ))}
           </div>
-        </div>
-      </main>
+      </DashboardPage>
     </DashboardLayout>
   );
 }

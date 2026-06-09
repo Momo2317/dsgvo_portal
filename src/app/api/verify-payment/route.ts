@@ -45,13 +45,18 @@ export async function GET(request: NextRequest) {
       ? new Date(subscription.current_period_end * 1000).toISOString()
       : null;
 
-    // Write subscription to Supabase using service role key
     const supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.SUPABASE_SERVICE_ROLE_KEY!
     );
 
-    // Upsert subscription record
+    const { data: existing } = await supabase
+      .from('subscriptions')
+      .select('stripe_subscription_id, plan')
+      .eq('user_id', userId)
+      .maybeSingle();
+
+    const now = new Date().toISOString();
     const { error: upsertError } = await supabase
       .from('subscriptions')
       .upsert(
@@ -65,6 +70,7 @@ export async function GET(request: NextRequest) {
           current_period_start: periodStart,
           current_period_end: periodEnd,
           cancel_at_period_end: false,
+          updated_at: now,
         },
         { onConflict: 'user_id' }
       );
@@ -72,6 +78,20 @@ export async function GET(request: NextRequest) {
     if (upsertError) {
       console.error('Supabase upsert error:', upsertError);
       return NextResponse.json({ error: 'DB write failed', detail: upsertError.message }, { status: 500 });
+    }
+
+    const previousSubId = existing?.stripe_subscription_id;
+    if (
+      previousSubId &&
+      stripeSubId &&
+      previousSubId !== stripeSubId &&
+      existing.plan !== plan
+    ) {
+      try {
+        await stripe.subscriptions.cancel(previousSubId);
+      } catch (cancelErr: any) {
+        console.warn('Could not cancel previous Stripe subscription:', cancelErr.message);
+      }
     }
 
     return NextResponse.json({ status: 'active', plan });

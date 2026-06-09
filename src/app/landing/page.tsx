@@ -174,7 +174,7 @@ export default function LandingPage() {
             <AppLogo size={36} />
             <span className="font-bold text-lg tracking-tight text-foreground">TresorLink</span>
           </div>
-          <div className="hidden md:flex items-center gap-6">
+          <div className="hidden md:flex items-center gap-5">
             <a href="#features" className="text-sm text-muted-foreground hover:text-foreground transition-colors">Funktionen</a>
             <a href="#pricing" className="text-sm text-muted-foreground hover:text-foreground transition-colors">Preise</a>
             <a href="#faq" className="text-sm text-muted-foreground hover:text-foreground transition-colors">FAQ</a>
@@ -241,7 +241,7 @@ export default function LandingPage() {
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
             {FEATURES?.map((feature, i) => (
-              <div key={feature?.title} className={`bg-card border border-border rounded-2xl p-6 hover:border-primary/30 transition-all ${i === 0 ? 'lg:col-span-2' : ''}`}>
+              <div key={feature?.title} className={`bg-card border border-border rounded-xl p-5 hover:border-primary/30 transition-all ${i === 0 ? 'lg:col-span-2' : ''}`}>
                 <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center mb-4">
                   <feature.icon size={18} className="text-primary" />
                 </div>
@@ -259,7 +259,7 @@ export default function LandingPage() {
             <h2 className="text-3xl sm:text-4xl font-bold text-foreground mb-4">So einfach funktioniert es</h2>
             <p className="text-muted-foreground">In 3 Schritten zum sicheren Dokumentenempfang</p>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
             {[
               { step: '01', icon: Users, title: 'Konto erstellen', desc: 'Registrieren Sie sich und wählen Sie Ihren Plan. Ihr persönliches Upload-Portal ist sofort einsatzbereit.' },
               { step: '02', icon: Globe, title: 'Link teilen', desc: 'Senden Sie Ihren Portal-Link per E-Mail oder binden Sie ihn auf Ihrer Website ein.' },
@@ -303,7 +303,7 @@ export default function LandingPage() {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
             {PLANS?.map((plan) => {
               const price = billingAnnual ? plan?.yearlyPrice : plan?.monthlyPrice;
               const PlanIcon = plan?.icon;
@@ -311,7 +311,7 @@ export default function LandingPage() {
               return (
                 <div
                   key={plan?.id}
-                  className={`relative bg-card rounded-2xl border flex flex-col ${
+                  className={`relative bg-card rounded-xl border flex flex-col ${
                     plan?.highlight
                       ? 'border-primary shadow-lg shadow-primary/10 ring-2 ring-primary/20'
                       : 'border-border'
@@ -324,7 +324,7 @@ export default function LandingPage() {
                       </span>
                     </div>
                   )}
-                  <div className="p-6 border-b border-border">
+                  <div className="p-5 border-b border-border">
                     <div className="flex items-center gap-2 mb-3">
                       <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ backgroundColor: `${plan?.color}1a` }}>
                         <PlanIcon size={14} style={{ color: plan?.color }} />
@@ -342,7 +342,7 @@ export default function LandingPage() {
                     )}
                     <p className="text-xs text-muted-foreground leading-relaxed">{plan?.description}</p>
                   </div>
-                  <div className="p-6 flex-1">
+                  <div className="p-5 flex-1">
                     <ul className="space-y-2.5">
                       {plan?.features?.map((feature) => (
                         <li key={feature?.text} className="flex items-start gap-2.5">
@@ -358,7 +358,7 @@ export default function LandingPage() {
                       ))}
                     </ul>
                   </div>
-                  <div className="p-6 pt-0">
+                  <div className="p-5 pt-0">
                     <Link
                       href={`/sign-up-login-screen?plan=${plan?.id}`}
                       className={`w-full flex items-center justify-center gap-2 py-2.5 text-sm font-semibold rounded-xl transition-all ${
@@ -387,9 +387,9 @@ export default function LandingPage() {
           <div className="text-center mb-12">
             <h2 className="text-3xl sm:text-4xl font-bold text-foreground mb-4">Was unsere Nutzer sagen</h2>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
             {TESTIMONIALS?.map((t) => (
-              <div key={t?.name} className="bg-card border border-border rounded-2xl p-6">
+              <div key={t?.name} className="bg-card border border-border rounded-xl p-5">
                 <div className="flex items-center gap-0.5 mb-4">
                   {Array.from({ length: t?.stars })?.map((_, i) => (
                     <Star key={i} size={14} className="text-amber-400 fill-amber-400" />
@@ -434,7 +434,7 @@ export default function LandingPage() {
       {/* CTA */}
       <section className="py-20 px-4 sm:px-6">
         <div className="max-w-3xl mx-auto text-center">
-          <div className="bg-primary rounded-3xl p-10 sm:p-14 relative overflow-hidden">
+          <div className="bg-primary rounded-xl p-10 sm:p-14 relative overflow-hidden">
             <div className="absolute inset-0 opacity-10">
               <div className="absolute top-0 right-0 w-64 h-64 rounded-full bg-white translate-x-16 -translate-y-16" />
               <div className="absolute bottom-0 left-0 w-48 h-48 rounded-full bg-white -translate-x-12 translate-y-12" />
@@ -457,7 +457,7 @@ export default function LandingPage() {
       {/* Footer */}
       <footer className="border-t border-border bg-card py-10 px-4 sm:px-6">
         <div className="max-w-6xl mx-auto">
-          <div className="flex flex-col md:flex-row items-start justify-between gap-8 mb-8">
+          <div className="flex flex-col md:flex-row items-start justify-between gap-5 mb-8">
             <div className="max-w-xs">
               <div className="flex items-center gap-2.5 mb-3">
                 <AppLogo size={32} />
@@ -468,7 +468,7 @@ export default function LandingPage() {
                 Server-Standort: Frankfurt, Deutschland.
               </p>
             </div>
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-8">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-5">
               <div>
                 <p className="text-xs font-semibold text-foreground mb-3 uppercase tracking-wide">Produkt</p>
                 <ul className="space-y-2">

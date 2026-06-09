@@ -6,6 +6,8 @@ import { Check, X, Zap, Building2, Crown, Loader2, ArrowRight, Shield, LogOut } 
 import { subscriptionService, PLAN_PRICES } from '@/lib/services/subscriptionService';
 import type { PlanType, BillingInterval } from '@/lib/services/subscriptionService';
 import { createClient, ensureSessionRestored } from '@/lib/supabase/client';
+import { getAuthenticatedUser } from '@/lib/supabase/auth-helpers';
+import { accountService } from '@/lib/services/accountService';
 import { persistSessionTokens } from '@/lib/supabase/session-storage';
 import AppLogo from '@/components/ui/AppLogo';
 
@@ -84,16 +86,19 @@ export default function ChoosePlanPage() {
 
   useEffect(() => {
     const init = async () => {
-      await ensureSessionRestored();
-      const supabase = createClient();
-      const { data: { user } } = await supabase.auth.getUser();
+      const user = await getAuthenticatedUser();
       if (!user) {
         router.push('/sign-up-login-screen');
         return;
       }
       setUserEmail(user.email ?? '');
 
-      // If already subscribed, go to dashboard
+      const membership = await accountService.getTeamMembership();
+      if (membership) {
+        router.push('/dashboard');
+        return;
+      }
+
       const sub = await subscriptionService.getSubscription();
       if (sub) {
         router.push('/dashboard');
@@ -216,7 +221,7 @@ export default function ChoosePlanPage() {
         </div>
 
         {/* Plan cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
           {PLAN_CONFIG.map((plan) => {
             const price =
               billingInterval === 'monthly'
@@ -229,7 +234,7 @@ export default function ChoosePlanPage() {
             return (
               <div
                 key={plan.id}
-                className={`relative bg-card rounded-2xl border flex flex-col ${
+                className={`relative bg-card rounded-xl border flex flex-col ${
                   plan.highlight
                     ? 'border-primary shadow-lg shadow-primary/10 ring-2 ring-primary/20'
                     : 'border-border'
@@ -243,7 +248,7 @@ export default function ChoosePlanPage() {
                   </div>
                 )}
 
-                <div className="p-6 border-b border-border">
+                <div className="p-5 border-b border-border">
                   <div className="flex items-center gap-2 mb-3">
                     <div
                       className="w-8 h-8 rounded-lg flex items-center justify-center"
@@ -267,7 +272,7 @@ export default function ChoosePlanPage() {
                   <p className="text-xs text-muted-foreground">{plan.description}</p>
                 </div>
 
-                <div className="p-6 flex-1">
+                <div className="p-5 flex-1">
                   <ul className="space-y-2.5">
                     {plan.features.map((feature) => (
                       <li key={feature.text} className="flex items-start gap-2.5">
@@ -288,7 +293,7 @@ export default function ChoosePlanPage() {
                   </ul>
                 </div>
 
-                <div className="p-6 pt-0">
+                <div className="p-5 pt-0">
                   <button
                     onClick={() => handleSubscribe(plan.id)}
                     disabled={!!checkoutLoading}

@@ -17,8 +17,11 @@ import {
   Check,
   AlertCircle,
 } from 'lucide-react';
+import Link from 'next/link';
 import { brandingService, workspaceService } from '@/lib/services/portalService';
 import type { Workspace, BrandingSettings } from '@/lib/services/portalService';
+import type { PlanLimits } from '@/lib/planLimits';
+import { DEFAULT_BRAND_LOGO } from '@/lib/brand';
 
 interface BrandingForm {
   portalTitle: string;
@@ -41,13 +44,24 @@ const PRESET_COLORS = [
 interface BrandingPanelProps {
   workspace: Workspace;
   branding: BrandingSettings | null;
+  planLimits?: PlanLimits | null;
   onClose: () => void;
   onSaved: (branding: BrandingSettings, updatedWorkspace?: Workspace) => void;
 }
 
-export default function BrandingPanel({ workspace, branding, onClose, onSaved }: BrandingPanelProps) {
+export default function BrandingPanel({
+  workspace,
+  branding,
+  planLimits,
+  onClose,
+  onSaved,
+}: BrandingPanelProps) {
+  const canUseCustomDomain = planLimits?.customDomain ?? false;
   const [isSaving, setIsSaving] = useState(false);
-  const [logoPreview, setLogoPreview] = useState<string | null>(branding?.logoUrl || null);
+  const [logoPreview, setLogoPreview] = useState<string | null>(
+    branding?.logoUrl || DEFAULT_BRAND_LOGO
+  );
+  const [useDefaultLogo, setUseDefaultLogo] = useState(!branding?.logoUrl);
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [selectedColor, setSelectedColor] = useState(branding?.accentColor || '#1a56db');
 
@@ -84,9 +98,12 @@ export default function BrandingPanel({ workspace, branding, onClose, onSaved }:
   const onSubmit = async (data: BrandingForm) => {
     setIsSaving(true);
     try {
-      let logoUrl = branding?.logoUrl || null;
+      let logoUrl: string | null = useDefaultLogo ? null : branding?.logoUrl || null;
       if (logoFile) {
         logoUrl = await brandingService.uploadLogo(workspace.slug, logoFile);
+        setUseDefaultLogo(false);
+      } else if (useDefaultLogo) {
+        logoUrl = null;
       }
 
       await brandingService.updateBranding(workspace.id, {
@@ -96,7 +113,7 @@ export default function BrandingPanel({ workspace, branding, onClose, onSaved }:
         autoDeleteDays: Number(data.autoDeleteDays),
         notifyEmail: data.notifyEmail || null,
         logoUrl,
-        customDomain: data.customDomain?.trim() || null,
+        customDomain: canUseCustomDomain ? data.customDomain?.trim() || null : null,
       });
 
       toast.success('Portal-Einstellungen gespeichert');
@@ -109,7 +126,7 @@ export default function BrandingPanel({ workspace, branding, onClose, onSaved }:
         autoDeleteDays: Number(data.autoDeleteDays),
         notifyEmail: data.notifyEmail || null,
         logoUrl,
-        customDomain: data.customDomain?.trim() || null,
+        customDomain: canUseCustomDomain ? data.customDomain?.trim() || null : null,
       });
       onClose();
     } catch (err: any) {
@@ -127,6 +144,7 @@ export default function BrandingPanel({ workspace, branding, onClose, onSaved }:
       return;
     }
     setLogoFile(file);
+    setUseDefaultLogo(false);
     const url = URL.createObjectURL(file);
     setLogoPreview(url);
     toast.success('Logo-Vorschau aktualisiert');
@@ -168,7 +186,7 @@ export default function BrandingPanel({ workspace, branding, onClose, onSaved }:
   };
 
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || '';
-  const customDomain = watch('customDomain')?.trim();
+  const customDomain = canUseCustomDomain ? watch('customDomain')?.trim() : '';
   const portalUrl = customDomain
     ? `https://${customDomain}`
     : `${siteUrl}/u/${currentSlug}`;
@@ -183,7 +201,7 @@ export default function BrandingPanel({ workspace, branding, onClose, onSaved }:
         className="absolute inset-0 bg-foreground/20 backdrop-blur-sm"
         onClick={onClose}
       />
-      <div className="relative bg-card border border-border rounded-2xl shadow-modal w-full max-w-lg h-full max-h-[calc(100vh-2rem)] flex flex-col fade-in">
+      <div className="relative ui-card rounded-xl shadow-modal w-full max-w-lg h-full max-h-[calc(100vh-2rem)] flex flex-col fade-in">
         {/* Header */}
         <div className="flex items-center justify-between p-5 border-b border-border flex-shrink-0">
           <div>
@@ -211,35 +229,42 @@ export default function BrandingPanel({ workspace, branding, onClose, onSaved }:
                 Logo
               </label>
               <p className="text-xs text-muted-foreground mb-3">
-                PNG oder SVG, max. 2 MB. Wird im Upload-Portal angezeigt.
+                Standardmäßig wird das TresorLink-Logo verwendet. Optional eigenes PNG/SVG (max. 2 MB).
               </p>
-              <div className="flex items-center gap-4">
-                <div className="w-16 h-16 rounded-xl border-2 border-dashed border-border bg-muted/40 flex items-center justify-center overflow-hidden flex-shrink-0">
-                  {logoPreview ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={logoPreview}
-                      alt="Logo-Vorschau"
-                      className="w-full h-full object-contain"
+              <div className="flex flex-wrap items-center gap-3">
+                <div className="w-16 h-16 rounded-xl border-2 border-dashed border-border bg-muted/40 flex items-center justify-center overflow-hidden flex-shrink-0 p-1">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={logoPreview || DEFAULT_BRAND_LOGO}
+                    alt="Logo-Vorschau"
+                    className="w-full h-full object-contain"
+                  />
+                </div>
+                <div className="flex flex-col gap-2">
+                  <label className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium border border-border rounded-lg hover:bg-muted cursor-pointer transition-all text-foreground w-fit">
+                    <Upload size={15} />
+                    Eigenes Logo hochladen
+                    <input
+                      type="file"
+                      accept="image/png,image/svg+xml,image/jpeg"
+                      className="hidden"
+                      onChange={handleLogoUpload}
                     />
-                  ) : (
-                    <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
-                      <span className="text-xs font-bold text-primary">
-                        {workspace?.slug?.substring(0, 2).toUpperCase() || 'KM'}
-                      </span>
-                    </div>
+                  </label>
+                  {!useDefaultLogo && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setUseDefaultLogo(true);
+                        setLogoFile(null);
+                        setLogoPreview(DEFAULT_BRAND_LOGO);
+                      }}
+                      className="text-xs font-medium text-primary hover:underline text-left"
+                    >
+                      Standard-Logo verwenden
+                    </button>
                   )}
                 </div>
-                <label className="flex items-center gap-2 px-4 py-2 text-sm font-medium border border-border rounded-lg hover:bg-muted cursor-pointer transition-all text-foreground">
-                  <Upload size={15} />
-                  Logo hochladen
-                  <input
-                    type="file"
-                    accept="image/png,image/svg+xml,image/jpeg"
-                    className="hidden"
-                    onChange={handleLogoUpload}
-                  />
-                </label>
               </div>
             </div>
 
@@ -389,22 +414,40 @@ export default function BrandingPanel({ workspace, branding, onClose, onSaved }:
               )}
             </div>
 
-            {/* Custom domain */}
-            <div>
-              <label className="block text-sm font-semibold text-foreground mb-1 flex items-center gap-2">
-                <Globe size={14} />
-                Eigene Domain (optional)
-              </label>
-              <p className="text-xs text-muted-foreground mb-2">
-                Falls Sie eine eigene Domain verwenden (z.B. upload.ihrefirma.de), tragen Sie diese hier ein. Der Portal-Link wird dann mit dieser Domain angezeigt.
-              </p>
-              <input
-                type="text"
-                placeholder="upload.ihrefirma.de"
-                className="w-full px-3 py-2.5 text-sm border border-border rounded-lg bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-all"
-                {...register('customDomain')}
-              />
-            </div>
+            {/* Custom domain — Kanzlei+ only */}
+            {canUseCustomDomain ? (
+              <div>
+                <label className="block text-sm font-semibold text-foreground mb-1 flex items-center gap-2">
+                  <Globe size={14} />
+                  Eigene Domain (optional)
+                </label>
+                <p className="text-xs text-muted-foreground mb-2">
+                  z.B. upload.ihrefirma.de — der Portal-Link wird dann mit dieser Domain angezeigt.
+                </p>
+                <input
+                  type="text"
+                  placeholder="upload.ihrefirma.de"
+                  className="w-full px-3 py-2.5 text-sm border border-border rounded-lg bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-all"
+                  {...register('customDomain')}
+                />
+              </div>
+            ) : (
+              <div className="bg-muted/60 rounded-xl border border-border p-4">
+                <div className="flex items-center gap-2 mb-1">
+                  <Globe size={14} className="text-muted-foreground" />
+                  <p className="text-sm font-semibold text-foreground">Eigene Domain</p>
+                </div>
+                <p className="text-xs text-muted-foreground mb-2">
+                  Im Starter-Plan nicht enthalten. Nutzen Sie Ihren TresorLink-Link unter /u/ihr-name.
+                </p>
+                <Link
+                  href="/dashboard/billing"
+                  className="text-xs font-semibold text-primary hover:underline"
+                >
+                  Auf Kanzlei oder Premium upgraden →
+                </Link>
+              </div>
+            )}
 
             {/* Portal URL with slug rename */}
             <div className="bg-muted/60 rounded-xl border border-border p-4">

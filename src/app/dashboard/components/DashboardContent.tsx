@@ -5,50 +5,76 @@ import KPICards from './KPICards';
 import FileTable from './FileTable';
 import StorageChart from './StorageChart';
 import BrandingPanel from './BrandingPanel';
+import PlanUsageBanner from './PlanUsageBanner';
 import { Settings2, Loader2, ExternalLink, Copy, Check } from 'lucide-react';
-import { workspaceService, brandingService, fileService } from '@/lib/services/portalService';
+import { brandingService, fileService } from '@/lib/services/portalService';
 import { profileService } from '@/lib/services/portalService';
-import type { Workspace, BrandingSettings, UploadedFile, UserProfile } from '@/lib/services/portalService';
+import type { BrandingSettings, UploadedFile, UserProfile } from '@/lib/services/portalService';
+import { subscriptionService } from '@/lib/services/subscriptionService';
+import type { PlanType, PlanLimits } from '@/lib/planLimits';
+import { useAccount } from '@/contexts/AccountContext';
+import { useWorkspace } from '@/contexts/WorkspaceContext';
+import type { PortalLimitsResponse } from '@/app/api/portal-limits/route';
+import { DashboardPage } from '@/components/dashboard/DashboardPage';
 
 export interface DashboardData {
-  workspace: Workspace | null;
   branding: BrandingSettings | null;
   files: UploadedFile[];
   profile: UserProfile | null;
 }
 
 export default function DashboardContent() {
+  const { teamMembership } = useAccount();
+  const { activeWorkspace, loading: wsLoading } = useWorkspace();
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [copied, setCopied] = useState(false);
   const [data, setData] = useState<DashboardData>({
-    workspace: null,
     branding: null,
     files: [],
     profile: null,
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [plan, setPlan] = useState<PlanType>('starter');
+  const [planLimits, setPlanLimits] = useState<PlanLimits | null>(null);
+  const [usage, setUsage] = useState<Pick<
+    PortalLimitsResponse,
+    'storageUsedBytes' | 'portalCount' | 'teamMemberCount'
+  >>({ storageUsedBytes: 0, portalCount: 1, teamMemberCount: 1 });
 
   const loadData = async () => {
     try {
       setLoading(true);
       setError(null);
-      const [profile, workspace] = await Promise.all([
+      const [profile, limits, currentPlan] = await Promise.all([
         profileService.getProfile(),
-        workspaceService.getMyWorkspace(),
+        subscriptionService.getPlanLimits(),
+        subscriptionService.getCurrentPlan(),
       ]);
+      setPlanLimits(limits);
+      setPlan(currentPlan);
 
-      if (!workspace) {
-        setData({ workspace: null, branding: null, files: [], profile });
+      if (!activeWorkspace) {
+        setData({ branding: null, files: [], profile });
         return;
       }
 
-      const [branding, files] = await Promise.all([
-        brandingService.getBranding(workspace.id),
-        fileService.getFiles(workspace.id),
+      const [branding, files, limitsRes] = await Promise.all([
+        brandingService.getBranding(activeWorkspace.id),
+        fileService.getFiles(activeWorkspace.id),
+        fetch(`/api/portal-limits?workspaceId=${activeWorkspace.id}`),
       ]);
 
-      setData({ workspace, branding, files, profile });
+      if (limitsRes.ok) {
+        const portalLimits = (await limitsRes.json()) as PortalLimitsResponse;
+        setUsage({
+          storageUsedBytes: portalLimits.storageUsedBytes,
+          portalCount: portalLimits.portalCount,
+          teamMemberCount: portalLimits.teamMemberCount,
+        });
+      }
+
+      setData({ branding: branding, files, profile });
     } catch (err: any) {
       setError(err?.message || 'Fehler beim Laden der Daten');
     } finally {
@@ -57,32 +83,38 @@ export default function DashboardContent() {
   };
 
   useEffect(() => {
-    loadData();
-  }, []);
+    if (!wsLoading) loadData();
+  }, [activeWorkspace?.id, wsLoading]);
+
+  const canUseCustomDomain = planLimits?.customDomain ?? false;
+  const effectiveCustomDomain =
+    canUseCustomDomain && data.branding?.customDomain ? data.branding.customDomain : null;
 
   const handleCopyLink = () => {
-    if (!data.workspace) return;
-    const customDomain = data.branding?.customDomain;
-    const url = customDomain
-      ? `https://${customDomain}`
-      : `${process.env.NEXT_PUBLIC_SITE_URL || ''}/u/${data.workspace.slug}`;
+    if (!activeWorkspace) return;
+    const url = effectiveCustomDomain
+      ? `https://${effectiveCustomDomain}`
+      : `${process.env.NEXT_PUBLIC_SITE_URL || ''}/u/${activeWorkspace.slug}`;
     navigator.clipboard.writeText(url).then(() => {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     });
   };
 
-  const displayName = data.profile?.fullName?.split(' ')[0] || data.profile?.email?.split('@')[0] || 'Nutzer';
-  const customDomain = data.branding?.customDomain;
-  const portalUrl = data.workspace
-    ? customDomain
-      ? `https://${customDomain}`
-      : `${process.env.NEXT_PUBLIC_SITE_URL || ''}/u/${data.workspace.slug}`
+  const displayName =
+    data.profile?.fullName?.trim() ||
+    data.profile?.company?.trim() ||
+    data.profile?.email?.split('@')[0] ||
+    'Nutzer';
+  const portalUrl = activeWorkspace
+    ? effectiveCustomDomain
+      ? `https://${effectiveCustomDomain}`
+      : `${process.env.NEXT_PUBLIC_SITE_URL || ''}/u/${activeWorkspace.slug}`
     : '';
 
-  if (loading) {
+  if (loading || wsLoading) {
     return (
-      <main className="flex-1 overflow-y-auto flex items-center justify-center">
+      <main className="flex items-center justify-center min-h-[50vh]">
         <div className="flex flex-col items-center gap-3">
           <Loader2 size={32} className="animate-spin text-primary" />
           <p className="text-sm text-muted-foreground">Dashboard wird geladen...</p>
@@ -93,12 +125,12 @@ export default function DashboardContent() {
 
   if (error) {
     return (
-      <main className="flex-1 overflow-y-auto flex items-center justify-center">
+      <main className="flex items-center justify-center min-h-[50vh]">
         <div className="text-center">
           <p className="text-sm text-danger mb-3">{error}</p>
           <button
             onClick={loadData}
-            className="px-4 py-2 text-sm font-medium bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-all"
+            className="ui-btn-primary"
           >
             Erneut versuchen
           </button>
@@ -108,10 +140,8 @@ export default function DashboardContent() {
   }
 
   return (
-    <main className="flex-1 overflow-y-auto">
-      <div className="max-w-screen-2xl mx-auto px-4 lg:px-6 xl:px-8 2xl:px-10 py-6">
-        {/* Page header */}
-        <div className="flex items-center justify-between mb-6">
+    <DashboardPage>
+        <div className="flex items-center justify-between gap-4">
           <div>
             <h1 className="text-2xl font-bold text-foreground">Dashboard</h1>
             <p className="text-sm text-muted-foreground mt-0.5">
@@ -120,16 +150,27 @@ export default function DashboardContent() {
           </div>
           <button
             onClick={() => setSettingsOpen(true)}
-            className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-muted-foreground border border-border rounded-lg hover:bg-muted hover:text-foreground active:scale-[0.97] transition-all"
+            className="ui-btn-secondary text-muted-foreground hover:text-foreground"
           >
             <Settings2 size={16} />
             <span className="hidden sm:inline">Portal-Einstellungen</span>
           </button>
         </div>
 
+        {planLimits && (
+          <PlanUsageBanner
+            plan={plan}
+            limits={planLimits}
+            storageUsedBytes={usage.storageUsedBytes}
+            portalCount={usage.portalCount}
+            teamMemberCount={usage.teamMemberCount}
+            teamOwnerName={teamMembership?.ownerCompany || teamMembership?.ownerName || null}
+          />
+        )}
+
         {/* Portal Link Banner */}
-        {data.workspace && (
-          <div className="mb-6 bg-primary/5 border border-primary/20 rounded-xl px-4 py-3 flex flex-col sm:flex-row sm:items-center gap-3">
+        {activeWorkspace && (
+          <div className="ui-alert bg-primary/5 border-primary/20 flex-col sm:flex-row sm:items-center">
             <div className="flex-1 min-w-0">
               <p className="text-xs font-semibold text-primary mb-0.5">Ihr Upload-Portal</p>
               <p className="text-sm font-mono text-foreground truncate">{portalUrl}</p>
@@ -137,16 +178,16 @@ export default function DashboardContent() {
             <div className="flex items-center gap-2 flex-shrink-0">
               <button
                 onClick={handleCopyLink}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium border border-border rounded-lg bg-background hover:bg-muted transition-all text-foreground"
+                className="ui-btn-sm border border-border bg-background hover:bg-muted text-foreground"
               >
                 {copied ? <Check size={13} className="text-accent" /> : <Copy size={13} />}
                 {copied ? 'Kopiert!' : 'Kopieren'}
               </button>
               <a
-                href={customDomain ? `https://${customDomain}` : `/u/${data.workspace.slug}`}
+                href={effectiveCustomDomain ? `https://${effectiveCustomDomain}` : `/u/${activeWorkspace.slug}`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-all"
+                className="ui-btn-sm bg-primary text-primary-foreground hover:bg-primary/90"
               >
                 <ExternalLink size={13} />
                 Portal öffnen
@@ -156,10 +197,10 @@ export default function DashboardContent() {
         )}
 
         {/* KPI Cards */}
-        <KPICards files={data.files} />
+        <KPICards files={data.files} storageLimitGb={planLimits?.storageGb} />
 
         {/* Main content grid */}
-        <div className="mt-6 grid grid-cols-1 xl:grid-cols-4 2xl:grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 xl:grid-cols-4 gap-5">
           {/* File table — takes 3/4 width */}
           <div className="xl:col-span-3 2xl:col-span-3">
             <FileTable
@@ -172,26 +213,24 @@ export default function DashboardContent() {
 
           {/* Storage chart — takes 1/4 width */}
           <div className="xl:col-span-1 2xl:col-span-1">
-            <StorageChart files={data.files} />
+            <StorageChart files={data.files} storageLimitGb={planLimits?.storageGb} />
           </div>
         </div>
-      </div>
-
       {/* Branding settings panel */}
-      {settingsOpen && data.workspace && (
+      {settingsOpen && activeWorkspace && (
         <BrandingPanel
-          workspace={data.workspace}
+          workspace={activeWorkspace}
           branding={data.branding}
+          planLimits={planLimits}
           onClose={() => setSettingsOpen(false)}
-          onSaved={(updatedBranding, updatedWorkspace) => {
+          onSaved={(updatedBranding) => {
             setData((prev) => ({
               ...prev,
               branding: updatedBranding,
-              workspace: updatedWorkspace || prev.workspace,
             }));
           }}
         />
       )}
-    </main>
+    </DashboardPage>
   );
 }

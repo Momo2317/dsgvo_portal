@@ -22,7 +22,8 @@ export const metadata: Metadata = {
   description:
     'DSGVO-konformes Datei-Upload-Portal für Steuerberater, Anwälte und Makler. Mandanten laden Dokumente sicher hoch — ohne Anmeldung.',
   icons: {
-    icon: [{ url: '/favicon.ico', type: 'image/x-icon' }],
+    icon: [{ url: '/assets/images/app_logo.png', type: 'image/png' }],
+    apple: [{ url: '/assets/images/app_logo.png', type: 'image/png' }],
   },
 };
 

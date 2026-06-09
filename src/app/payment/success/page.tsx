@@ -4,6 +4,7 @@ import React, { useEffect, useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { CheckCircle2, Loader2 } from 'lucide-react';
 import { createClient, ensureSessionRestored } from '@/lib/supabase/client';
+import { getAuthenticatedUser } from '@/lib/supabase/auth-helpers';
 
 function PaymentSuccessInner() {
   const router = useRouter();
@@ -40,8 +41,9 @@ function PaymentSuccessInner() {
             if (data?.status === 'active') {
               setStatusText('Abonnement aktiviert!');
               setDone(true);
+              const returnTo = searchParams?.get('returnTo') || '/dashboard';
               setTimeout(() => {
-                if (!cancelled) router.replace('/dashboard');
+                if (!cancelled) router.replace(returnTo.startsWith('/') ? returnTo : '/dashboard');
               }, 1200);
               return;
             }
@@ -51,7 +53,7 @@ function PaymentSuccessInner() {
         }
 
         if (tries >= MAX_TRIES) {
-          const { data: { user } } = await supabase.auth.getUser();
+          const user = await getAuthenticatedUser();
           if (!cancelled) {
             router.replace(user ? '/dashboard' : `/sign-up-login-screen?next=${encodeURIComponent('/dashboard')}`);
           }

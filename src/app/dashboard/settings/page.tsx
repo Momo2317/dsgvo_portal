@@ -2,14 +2,16 @@
 
 import React, { useState, useEffect } from 'react';
 import DashboardLayout from '../components/DashboardLayout';
+import { DashboardPage, PageHeader } from '@/components/dashboard/DashboardPage';
 import { Settings, User, Building2, Mail, Save, Loader2, CheckCircle2, Key, ExternalLink, Copy } from 'lucide-react';
-import { workspaceService, profileService, brandingService } from '@/lib/services/portalService';
-import type { Workspace, UserProfile, BrandingSettings } from '@/lib/services/portalService';
+import { profileService, brandingService } from '@/lib/services/portalService';
+import type { UserProfile, BrandingSettings } from '@/lib/services/portalService';
+import { useWorkspace } from '@/contexts/WorkspaceContext';
 import { createClient } from '@/lib/supabase/client';
 
 export default function SettingsPage() {
+  const { activeWorkspace: workspace, loading: wsLoading } = useWorkspace();
   const [profile, setProfile] = useState<UserProfile | null>(null);
-  const [workspace, setWorkspace] = useState<Workspace | null>(null);
   const [branding, setBranding] = useState<BrandingSettings | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -23,17 +25,14 @@ export default function SettingsPage() {
 
   useEffect(() => {
     const load = async () => {
+      if (wsLoading) return;
       try {
-        const [p, ws] = await Promise.all([
-          profileService.getProfile(),
-          workspaceService.getMyWorkspace(),
-        ]);
+        const p = await profileService.getProfile();
         setProfile(p);
-        setWorkspace(ws);
-        setFullName(p?.fullName || '');
-        setCompany(p?.company || '');
-        if (ws) {
-          const br = await brandingService.getBranding(ws.id);
+        setFullName(p?.fullName?.trim() || '');
+        setCompany(p?.company?.trim() || '');
+        if (workspace) {
+          const br = await brandingService.getBranding(workspace.id);
           setBranding(br);
           setNotifyEmail(br?.notifyEmail || p?.email || '');
           setAutoDeleteDays(String(br?.autoDeleteDays || 14));
@@ -43,7 +42,7 @@ export default function SettingsPage() {
       }
     };
     load();
-  }, []);
+  }, [workspace?.id, wsLoading]);
 
   const handleSave = async () => {
     if (!workspace) return;
@@ -81,17 +80,12 @@ export default function SettingsPage() {
 
   return (
     <DashboardLayout>
-      <main className="flex-1 overflow-y-auto">
-        <div className="max-w-2xl mx-auto px-4 lg:px-6 py-6">
-          <div className="flex items-center gap-3 mb-6">
-            <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
-              <Settings size={20} className="text-primary" />
-            </div>
-            <div>
-              <h1 className="text-2xl font-bold text-foreground">Einstellungen</h1>
-              <p className="text-sm text-muted-foreground">Konto- und Portal-Konfiguration</p>
-            </div>
-          </div>
+      <DashboardPage width="narrow">
+        <PageHeader
+          icon={<Settings size={20} />}
+          title="Einstellungen"
+          description="Konto- und Portal-Konfiguration"
+        />
 
           {loading ? (
             <div className="flex items-center justify-center py-20">
@@ -100,10 +94,10 @@ export default function SettingsPage() {
           ) : (
             <div className="space-y-6">
               {/* Profile */}
-              <div className="bg-card border border-border rounded-2xl p-5">
-                <div className="flex items-center gap-2 mb-4">
+              <div className="ui-card-padded">
+                <div className="ui-section-title mb-4">
                   <User size={16} className="text-primary" />
-                  <h2 className="text-sm font-bold text-foreground">Profil</h2>
+                  Profil
                 </div>
                 <div className="space-y-4">
                   <div>
@@ -112,7 +106,7 @@ export default function SettingsPage() {
                       type="text"
                       value={fullName}
                       onChange={(e) => setFullName(e.target.value)}
-                      className="w-full px-3 py-2.5 text-sm border border-border rounded-lg bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-all"
+                      className="ui-input"
                       placeholder="Max Mustermann"
                     />
                   </div>
@@ -125,7 +119,7 @@ export default function SettingsPage() {
                       type="text"
                       value={company}
                       onChange={(e) => setCompany(e.target.value)}
-                      className="w-full px-3 py-2.5 text-sm border border-border rounded-lg bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-all"
+                      className="ui-input"
                       placeholder="Mustermann & Partner GmbH"
                     />
                   </div>
@@ -138,7 +132,7 @@ export default function SettingsPage() {
                       type="email"
                       value={profile?.email || ''}
                       disabled
-                      className="w-full px-3 py-2.5 text-sm border border-border rounded-lg bg-muted text-muted-foreground cursor-not-allowed"
+                      className="ui-input-readonly"
                     />
                     <p className="text-xs text-muted-foreground mt-1">E-Mail kann nicht geändert werden</p>
                   </div>
@@ -146,10 +140,10 @@ export default function SettingsPage() {
               </div>
 
               {/* Portal settings */}
-              <div className="bg-card border border-border rounded-2xl p-5">
-                <div className="flex items-center gap-2 mb-4">
+              <div className="ui-card-padded">
+                <div className="ui-section-title mb-4">
                   <Key size={16} className="text-primary" />
-                  <h2 className="text-sm font-bold text-foreground">Portal-Konfiguration</h2>
+                  Portal-Konfiguration
                 </div>
                 <div className="space-y-4">
                   <div>
@@ -187,7 +181,7 @@ export default function SettingsPage() {
                       type="email"
                       value={notifyEmail}
                       onChange={(e) => setNotifyEmail(e.target.value)}
-                      className="w-full px-3 py-2.5 text-sm border border-border rounded-lg bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-all"
+                      className="ui-input"
                       placeholder="benachrichtigungen@kanzlei.de"
                     />
                     <p className="text-xs text-muted-foreground mt-1">Wird bei neuen Uploads benachrichtigt</p>
@@ -197,7 +191,7 @@ export default function SettingsPage() {
                     <select
                       value={autoDeleteDays}
                       onChange={(e) => setAutoDeleteDays(e.target.value)}
-                      className="w-full px-3 py-2.5 text-sm border border-border rounded-lg bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-all"
+                      className="ui-input"
                     >
                       <option value="7">7 Tage</option>
                       <option value="14">14 Tage (empfohlen)</option>
@@ -205,7 +199,9 @@ export default function SettingsPage() {
                       <option value="60">60 Tage</option>
                       <option value="90">90 Tage</option>
                     </select>
-                    <p className="text-xs text-muted-foreground mt-1">DSGVO-konform: Dateien werden automatisch gelöscht</p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      DSGVO-konform: Dateien werden nach Ablauf der Frist automatisch gelöscht (beim Öffnen der Dateiübersicht).
+                    </p>
                   </div>
                 </div>
               </div>
@@ -214,7 +210,7 @@ export default function SettingsPage() {
               <button
                 onClick={handleSave}
                 disabled={saving}
-                className="w-full flex items-center justify-center gap-2 px-4 py-3 text-sm font-semibold bg-primary text-primary-foreground rounded-xl hover:bg-primary/90 active:scale-[0.98] transition-all disabled:opacity-60"
+                className="ui-btn-primary w-full"
               >
                 {saving ? (
                   <Loader2 size={16} className="animate-spin" />
@@ -227,8 +223,7 @@ export default function SettingsPage() {
               </button>
             </div>
           )}
-        </div>
-      </main>
+      </DashboardPage>
     </DashboardLayout>
   );
 }

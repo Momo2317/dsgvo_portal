@@ -58,6 +58,31 @@ export async function middleware(request: NextRequest) {
     return supabaseResponse;
   }
 
+  // Team invite registration — public
+  if (pathname.startsWith('/einladung/')) {
+    return supabaseResponse;
+  }
+
+  async function hasDashboardAccess(userId: string) {
+    const { data: subscription } = await supabase
+      .from('subscriptions')
+      .select('status')
+      .eq('user_id', userId)
+      .in('status', ['active', 'trialing'])
+      .maybeSingle();
+
+    if (subscription) return true;
+
+    const { data: teamMember } = await supabase
+      .from('team_members')
+      .select('id')
+      .eq('member_user_id', userId)
+      .eq('status', 'active')
+      .maybeSingle();
+
+    return Boolean(teamMember);
+  }
+
   // Already logged in — skip login screen
   if (user && pathname.startsWith('/sign-up-login-screen')) {
     const next = request.nextUrl.searchParams.get('next');
@@ -65,15 +90,8 @@ export async function middleware(request: NextRequest) {
       return NextResponse.redirect(new URL(next, request.url));
     }
 
-    const { data: subscription } = await supabase
-      .from('subscriptions')
-      .select('status')
-      .eq('user_id', user.id)
-      .in('status', ['active', 'trialing'])
-      .maybeSingle();
-
     const url = request.nextUrl.clone();
-    url.pathname = subscription ? '/dashboard' : '/choose-plan';
+    url.pathname = (await hasDashboardAccess(user.id)) ? '/dashboard' : '/choose-plan';
     url.search = '';
     return NextResponse.redirect(url);
   }
@@ -87,11 +105,42 @@ export async function middleware(request: NextRequest) {
     return loginRedirect(request);
   }
 
+  async function isActiveTeamMember(userId: string) {
+    const { data: teamMember } = await supabase
+      .from('team_members')
+      .select('id')
+      .eq('member_user_id', userId)
+      .eq('status', 'active')
+      .maybeSingle();
+
+    return Boolean(teamMember);
+  }
+
+  if (user && pathname.startsWith('/choose-plan')) {
+    if (await hasDashboardAccess(user.id)) {
+      const url = request.nextUrl.clone();
+      url.pathname = '/dashboard';
+      url.search = '';
+      return NextResponse.redirect(url);
+    }
+  }
+
+  if (
+    user &&
+    (pathname.startsWith('/dashboard/billing') ||
+      pathname.startsWith('/dashboard/team') ||
+      pathname.startsWith('/dashboard/portals'))
+  ) {
+    if (await isActiveTeamMember(user.id)) {
+      const url = request.nextUrl.clone();
+      url.pathname = '/dashboard';
+      url.search = '';
+      return NextResponse.redirect(url);
+    }
+  }
+
   // Logged in but accessing dashboard → check subscription
   if (user && pathname.startsWith('/dashboard')) {
-    if (pathname.startsWith('/dashboard/billing')) {
-      return supabaseResponse;
-    }
 
     const subscriptionSuccess = request.nextUrl.searchParams.get('subscription') === 'success';
     const hasSessionId = request.nextUrl.searchParams.has('session_id');
@@ -103,14 +152,7 @@ export async function middleware(request: NextRequest) {
       return supabaseResponse;
     }
 
-    const { data: subscription } = await supabase
-      .from('subscriptions')
-      .select('status')
-      .eq('user_id', user.id)
-      .in('status', ['active', 'trialing'])
-      .maybeSingle();
-
-    if (!subscription) {
+    if (!(await hasDashboardAccess(user.id))) {
       const url = request.nextUrl.clone();
       url.pathname = '/choose-plan';
       return NextResponse.redirect(url);

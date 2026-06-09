@@ -14,6 +14,7 @@ import type { UploadedFile } from '@/lib/services/portalService';
 
 interface KPICardsProps {
   files: UploadedFile[];
+  storageLimitGb?: number;
 }
 
 function formatBytes(bytes: number): string {
@@ -23,7 +24,7 @@ function formatBytes(bytes: number): string {
   return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
 }
 
-export default function KPICards({ files }: KPICardsProps) {
+export default function KPICards({ files, storageLimitGb = 10 }: KPICardsProps) {
   const totalFiles = files?.length || 0;
   const newFiles = files?.filter((f) => f?.status === 'new').length || 0;
 
@@ -77,7 +78,7 @@ export default function KPICards({ files }: KPICardsProps) {
       id: 'kpi-storage',
       label: 'Speicher genutzt',
       value: totalStorage,
-      sub: `${totalFiles} Datei${totalFiles !== 1 ? 'en' : ''}`,
+      sub: `${totalFiles} Datei${totalFiles !== 1 ? 'en' : ''} · Limit ${storageLimitGb} GB`,
       icon: HardDrive,
       trend: 'neutral',
       cardClass: 'kpi-card-neutral',

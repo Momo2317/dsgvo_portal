@@ -1,10 +1,10 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
+import { useWorkspace } from '@/contexts/WorkspaceContext';
 import { useRouter } from 'next/navigation';
-import { workspaceService } from '@/lib/services/portalService';
 import {
   Menu,
   Bell,
@@ -13,6 +13,7 @@ import {
   ExternalLink,
   Shield,
   LogOut,
+  ChevronDown,
 } from 'lucide-react';
 
 interface TopbarProps {
@@ -21,19 +22,17 @@ interface TopbarProps {
 
 export default function DashboardTopbar({ onMobileMenuToggle }: TopbarProps) {
   const [copied, setCopied] = useState(false);
-  const [portalSlug, setPortalSlug] = useState<string | null>(null);
+  const [switcherOpen, setSwitcherOpen] = useState(false);
   const { signOut, user } = useAuth();
+  const { activeWorkspace, workspaces, setActiveWorkspace } = useWorkspace();
   const router = useRouter();
 
-  useEffect(() => {
-    workspaceService.getMyWorkspace().then((ws) => {
-      if (ws?.slug) setPortalSlug(ws.slug);
-    }).catch(() => {});
-  }, []);
-
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || '';
+  const portalSlug = activeWorkspace?.slug || null;
   const portalUrl = portalSlug ? `${siteUrl}/u/${portalSlug}` : '';
-  const displayUrl = portalSlug ? `${siteUrl.replace('https://', '')}/u/${portalSlug}` : 'Wird geladen...';
+  const displayUrl = portalSlug
+    ? `${siteUrl.replace('https://', '')}/u/${portalSlug}`
+    : 'Wird geladen...';
 
   const handleCopy = async () => {
     if (!portalUrl) return;
@@ -56,8 +55,7 @@ export default function DashboardTopbar({ onMobileMenuToggle }: TopbarProps) {
   const initials = user?.email?.substring(0, 2).toUpperCase() || 'KM';
 
   return (
-    <header className="h-16 bg-card border-b border-border flex items-center px-4 lg:px-6 gap-4 flex-shrink-0">
-      {/* Mobile menu */}
+    <header className="sticky top-0 z-30 h-16 bg-card border-b border-border flex items-center px-4 lg:px-6 gap-4 flex-shrink-0">
       <button
         onClick={onMobileMenuToggle}
         className="lg:hidden p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition-all"
@@ -65,7 +63,50 @@ export default function DashboardTopbar({ onMobileMenuToggle }: TopbarProps) {
         <Menu size={20} />
       </button>
 
-      {/* Portal URL bar */}
+      {workspaces.length > 1 && (
+        <div className="relative hidden md:block">
+          <button
+            onClick={() => setSwitcherOpen(!switcherOpen)}
+            className="flex items-center gap-2 px-3 py-2 text-xs font-medium border border-border rounded-lg bg-muted hover:bg-muted/80 max-w-[200px]"
+          >
+            <span className="truncate">
+              {activeWorkspace?.name || activeWorkspace?.slug || 'Portal'}
+            </span>
+            <ChevronDown size={14} className="flex-shrink-0" />
+          </button>
+          {switcherOpen && (
+            <>
+              <div className="fixed inset-0 z-40" onClick={() => setSwitcherOpen(false)} />
+              <div className="absolute top-full left-0 mt-1 z-50 w-56 bg-card border border-border rounded-lg shadow-modal py-1">
+                {workspaces.map((ws) => (
+                  <button
+                    key={ws.id}
+                    onClick={() => {
+                      setActiveWorkspace(ws);
+                      setSwitcherOpen(false);
+                    }}
+                    className={`w-full text-left px-3 py-2 text-sm hover:bg-muted ${
+                      ws.id === activeWorkspace?.id ? 'text-primary font-medium' : 'text-foreground'
+                    }`}
+                  >
+                    {ws.name || ws.slug}
+                  </button>
+                ))}
+                <button
+                  onClick={() => {
+                    setSwitcherOpen(false);
+                    router.push('/dashboard/portals');
+                  }}
+                  className="w-full text-left px-3 py-2 text-xs text-primary hover:bg-muted border-t border-border"
+                >
+                  Alle Portale verwalten
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+      )}
+
       <div className="flex-1 flex items-center gap-3">
         <div className="hidden sm:flex items-center gap-2 bg-muted border border-border rounded-lg px-3 py-2 max-w-md">
           <Shield size={13} className="text-accent flex-shrink-0" />
@@ -98,7 +139,6 @@ export default function DashboardTopbar({ onMobileMenuToggle }: TopbarProps) {
         )}
       </div>
 
-      {/* Right actions */}
       <div className="flex items-center gap-2">
         <button
           onClick={() => router.push('/dashboard/notifications')}

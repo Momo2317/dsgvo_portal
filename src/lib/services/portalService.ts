@@ -1,6 +1,7 @@
 'use client';
 
 import { createClient } from '@/lib/supabase/client';
+import { accountService } from '@/lib/services/accountService';
 
 function isSchemaError(error: any): boolean {
   if (!error) return false;
@@ -26,8 +27,29 @@ function isSchemaError(error: any): boolean {
 export interface Workspace {
   id: string;
   slug: string;
+  name: string;
   ownerId: string;
   createdAt: string;
+}
+
+export interface TeamMember {
+  id: string;
+  ownerId: string;
+  memberEmail: string;
+  memberUserId: string | null;
+  workspaceId: string | null;
+  status: 'pending' | 'active';
+  createdAt: string;
+}
+
+function mapWorkspace(row: any): Workspace {
+  return {
+    id: row.id,
+    slug: row.slug,
+    name: row.name || '',
+    ownerId: row.owner_id,
+    createdAt: row.created_at,
+  };
 }
 
 export interface BrandingSettings {
@@ -66,28 +88,103 @@ export interface UserProfile {
 // ─── Workspace ───────────────────────────────────────────────
 
 export const workspaceService = {
-  async getMyWorkspace(): Promise<Workspace | null> {
+  async getMyWorkspaces(): Promise<Workspace[]> {
     const supabase = createClient();
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return null;
+    if (!user) return [];
 
     try {
+      const membership = await accountService.getTeamMembership();
+      if (membership) {
+        if (membership.workspaceId) {
+          const { data, error } = await supabase
+            .from('workspaces')
+            .select('*')
+            .eq('id', membership.workspaceId)
+            .maybeSingle();
+
+          if (error) {
+            if (isSchemaError(error)) throw error;
+            return [];
+          }
+          return data ? [mapWorkspace(data)] : [];
+        }
+
+        const { data, error } = await supabase
+          .from('workspaces')
+          .select('*')
+          .eq('owner_id', membership.ownerId)
+          .order('created_at', { ascending: true });
+
+        if (error) {
+          if (isSchemaError(error)) throw error;
+          return [];
+        }
+        return (data || []).map(mapWorkspace);
+      }
+
       const { data, error } = await supabase
         .from('workspaces')
         .select('*')
         .eq('owner_id', user.id)
-        .maybeSingle();
+        .order('created_at', { ascending: true });
 
       if (error) {
         if (isSchemaError(error)) throw error;
-        return null;
+        return [];
       }
-      if (!data) return null;
-      return { id: data.id, slug: data.slug, ownerId: data.owner_id, createdAt: data.created_at };
+      return (data || []).map(mapWorkspace);
     } catch (err: any) {
-      console.error('getMyWorkspace error:', err.message);
+      console.error('getMyWorkspaces error:', err.message);
       throw err;
     }
+  },
+
+  async getMyWorkspace(): Promise<Workspace | null> {
+    const workspaces = await this.getMyWorkspaces();
+    if (!workspaces.length) return null;
+
+    if (typeof window !== 'undefined') {
+      const storedId = localStorage.getItem('tresorlink_active_workspace_id');
+      const match = storedId ? workspaces.find((w) => w.id === storedId) : null;
+      if (match) return match;
+    }
+    return workspaces[0];
+  },
+
+  async createWorkspace(name: string, slug?: string): Promise<Workspace> {
+    const supabase = createClient();
+    const { data, error } = await supabase.rpc('create_workspace_for_owner', {
+      p_name: name,
+      p_slug: slug || null,
+    });
+    if (error) throw new Error(error.message);
+    if (!data?.success) throw new Error(data?.error || 'Portal konnte nicht erstellt werden');
+
+    const workspaces = await this.getMyWorkspaces();
+    const created = workspaces.find((w) => w.id === data.workspace_id);
+    if (!created) throw new Error('Portal erstellt, aber nicht gefunden');
+    return created;
+  },
+
+  async updateWorkspaceName(workspaceId: string, name: string): Promise<void> {
+    const supabase = createClient();
+    const { error } = await supabase
+      .from('workspaces')
+      .update({ name: name.trim() })
+      .eq('id', workspaceId);
+    if (error) throw new Error(error.message);
+  },
+
+  async deleteWorkspace(workspaceId: string): Promise<void> {
+    const workspaces = await this.getMyWorkspaces();
+    if (workspaces.length <= 1) {
+      throw new Error('Das letzte Portal kann nicht gelöscht werden.');
+    }
+
+    const supabase = createClient();
+    const { error } = await supabase.from('workspaces').delete().eq('id', workspaceId);
+    if (error) throw new Error(error.message);
   },
 
   async getWorkspaceBySlug(slug: string): Promise<Workspace | null> {
@@ -104,7 +201,7 @@ export const workspaceService = {
         return null;
       }
       if (!data) return null;
-      return { id: data.id, slug: data.slug, ownerId: data.owner_id, createdAt: data.created_at };
+      return mapWorkspace(data);
     } catch (err: any) {
       console.error('getWorkspaceBySlug error:', err.message);
       throw err;
@@ -258,12 +355,38 @@ function mapFile(row: any): UploadedFile {
 }
 
 export const fileService = {
+  async cleanupExpiredFiles(workspaceId: string): Promise<void> {
+    const supabase = createClient();
+    const now = new Date().toISOString();
+
+    try {
+      const { data: expired, error } = await supabase
+        .from('uploaded_files')
+        .select('id, storage_path')
+        .eq('workspace_id', workspaceId)
+        .not('expires_at', 'is', null)
+        .lte('expires_at', now);
+
+      if (error || !expired?.length) return;
+
+      const paths = expired.map((f) => f.storage_path);
+      const ids = expired.map((f) => f.id);
+
+      await supabase.storage.from('uploads').remove(paths);
+      await supabase.from('uploaded_files').delete().in('id', ids);
+    } catch (err: any) {
+      console.error('cleanupExpiredFiles error:', err.message);
+    }
+  },
+
   async getFiles(workspaceId: string): Promise<UploadedFile[]> {
     const supabase = createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return [];
 
     try {
+      await this.cleanupExpiredFiles(workspaceId);
+
       const { data, error } = await supabase
         .from('uploaded_files')
         .select('*')
@@ -360,6 +483,26 @@ export const fileService = {
     autoDeleteDays: number,
     onProgress: (progress: number) => void
   ): Promise<void> {
+    const limitsRes = await fetch(`/api/portal-limits?workspaceId=${workspaceId}`);
+    if (limitsRes.ok) {
+      const limits = await limitsRes.json();
+      const maxBytes =
+        limits.maxFileSizeMb > 0 ? limits.maxFileSizeMb * 1024 * 1024 : null;
+      if (maxBytes !== null && file.size > maxBytes) {
+        throw new Error(
+          `Datei überschreitet das Limit von ${limits.maxFileSizeMb} MB für Ihren ${limits.plan ?? 'Starter'}-Plan`
+        );
+      }
+      if (
+        limits.storageLimitBytes &&
+        limits.storageUsedBytes + file.size > limits.storageLimitBytes
+      ) {
+        throw new Error(
+          `Speicherlimit von ${limits.storageGb} GB erreicht. Bitte löschen Sie alte Dateien oder upgraden Sie Ihren Plan.`
+        );
+      }
+    }
+
     const supabase = createClient();
     const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
     const storagePath = `${workspaceSlug}/${Date.now()}_${safeName}`;
@@ -417,6 +560,69 @@ export const fileService = {
     } catch (notifyErr: any) {
       console.warn('Could not send upload notification:', notifyErr.message);
     }
+  },
+};
+
+// ─── Team ────────────────────────────────────────────────────
+
+export const teamService = {
+  async getTeamMembers(): Promise<TeamMember[]> {
+    const supabase = createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return [];
+
+    try {
+      const { data, error } = await supabase
+        .from('team_members')
+        .select('*')
+        .eq('owner_id', user.id)
+        .order('created_at', { ascending: true });
+
+      if (error) {
+        if (isSchemaError(error)) throw error;
+        return [];
+      }
+      return (data || []).map((row) => ({
+        id: row.id,
+        ownerId: row.owner_id,
+        memberEmail: row.member_email,
+        memberUserId: row.member_user_id,
+        workspaceId: row.workspace_id,
+        status: row.status as TeamMember['status'],
+        createdAt: row.created_at,
+      }));
+    } catch (err: any) {
+      console.error('getTeamMembers error:', err.message);
+      throw err;
+    }
+  },
+
+  async inviteMember(email: string, workspaceId?: string | null): Promise<void> {
+    const res = await fetch('/api/team-invite', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        email: email.trim().toLowerCase(),
+        workspaceId: workspaceId || null,
+      }),
+    });
+
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data?.error || 'Einladung fehlgeschlagen');
+    }
+    if (data.emailSent === false && data.error) {
+      throw new Error(data.error);
+    }
+    if (data.emailSent === false && data.warning) {
+      throw new Error(data.warning);
+    }
+  },
+
+  async removeMember(memberId: string): Promise<void> {
+    const supabase = createClient();
+    const { error } = await supabase.from('team_members').delete().eq('id', memberId);
+    if (error) throw new Error(error.message);
   },
 };
 

@@ -37,7 +37,7 @@ export default function DeleteConfirmModal({
         className="absolute inset-0 bg-foreground/20 backdrop-blur-sm"
         onClick={onCancel}
       />
-      <div className="relative bg-card border border-border rounded-2xl shadow-modal w-full max-w-md fade-in">
+      <div className="relative ui-card rounded-xl shadow-modal w-full max-w-md fade-in">
         <button
           onClick={onCancel}
           className="absolute top-4 right-4 p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition-all"
@@ -45,7 +45,7 @@ export default function DeleteConfirmModal({
           <X size={16} />
         </button>
 
-        <div className="p-6">
+        <div className="p-5">
           <div className="w-12 h-12 rounded-xl bg-danger/10 flex items-center justify-center mb-4">
             <AlertTriangle size={22} className="text-danger" />
           </div>

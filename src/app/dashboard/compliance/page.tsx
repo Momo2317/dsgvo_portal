@@ -2,6 +2,7 @@
 
 import React from 'react';
 import DashboardLayout from '../components/DashboardLayout';
+import { DashboardPage, PageHeader } from '@/components/dashboard/DashboardPage';
 import { Shield, CheckCircle2, AlertCircle, FileText, Lock, Server, Clock, Globe } from 'lucide-react';
 
 interface ComplianceItem {
@@ -78,20 +79,15 @@ const LEGAL_NOTES = [
 export default function CompliancePage() {
   return (
     <DashboardLayout>
-      <main className="flex-1 overflow-y-auto">
-        <div className="max-w-3xl mx-auto px-4 lg:px-6 py-6">
-          <div className="flex items-center gap-3 mb-6">
-            <div className="w-10 h-10 rounded-xl bg-accent/10 flex items-center justify-center">
-              <Shield size={20} className="text-accent" />
-            </div>
-            <div>
-              <h1 className="text-2xl font-bold text-foreground">DSGVO & Compliance</h1>
-              <p className="text-sm text-muted-foreground">Datenschutz-Konformitätsstatus Ihres Portals</p>
-            </div>
-          </div>
+      <DashboardPage width="narrow">
+        <PageHeader
+          icon={<Shield size={20} />}
+          title="DSGVO & Compliance"
+          description="Datenschutz-Konformitätsstatus Ihres Portals"
+          iconClassName="bg-accent/10 text-accent"
+        />
 
-          {/* Status banner */}
-          <div className="bg-accent/10 border border-accent/30 rounded-2xl p-4 flex items-center gap-3 mb-6">
+          <div className="ui-alert bg-accent/10 border-accent/30">
             <CheckCircle2 size={20} className="text-accent flex-shrink-0" />
             <div>
               <p className="text-sm font-semibold text-foreground">Alle Kernfunktionen DSGVO-konform</p>
@@ -100,7 +96,7 @@ export default function CompliancePage() {
           </div>
 
           {/* Compliance checklist */}
-          <div className="bg-card border border-border rounded-2xl divide-y divide-border overflow-hidden mb-6">
+          <div className="ui-card-divided">
             {COMPLIANCE_ITEMS.map((item) => (
               <div key={item.id} className="flex items-start gap-4 p-5">
                 <div className="w-8 h-8 rounded-lg bg-accent/10 flex items-center justify-center flex-shrink-0 text-accent mt-0.5">
@@ -121,20 +117,19 @@ export default function CompliancePage() {
           </div>
 
           {/* Legal notes */}
-          <h2 className="text-sm font-bold text-foreground mb-3 flex items-center gap-2">
+          <h2 className="ui-section-title mb-4">
             <AlertCircle size={14} className="text-warning" />
             Rechtliche Hinweise
           </h2>
-          <div className="space-y-3">
+          <div className="space-y-4">
             {LEGAL_NOTES.map((note) => (
-              <div key={note.id} className="bg-card border border-border rounded-xl p-4">
+              <div key={note.id} className="ui-card-padded">
                 <p className="text-sm font-semibold text-foreground mb-1">{note.title}</p>
                 <p className="text-xs text-muted-foreground leading-relaxed">{note.body}</p>
               </div>
             ))}
           </div>
-        </div>
-      </main>
+      </DashboardPage>
     </DashboardLayout>
   );
 }

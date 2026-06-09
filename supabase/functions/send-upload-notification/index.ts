@@ -17,19 +17,28 @@ serve(async (req) => {
   }
 
   try {
-    const { ownerEmail, fileName, fileSize, portalTitle, workspaceSlug } = await req.json();
+    const body = await req.json();
+    const { ownerEmail, fileName, fileSize, portalTitle, workspaceSlug } = body;
+
+    if (!ownerEmail || !fileName) {
+      return new Response(
+        JSON.stringify({ error: "Missing ownerEmail or fileName" }),
+        { status: 400, headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" } }
+      );
+    }
 
     const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
     if (!RESEND_API_KEY) {
       throw new Error("RESEND_API_KEY is not set");
     }
 
+    const recipient = String(ownerEmail).trim().toLowerCase();
     const fileSizeKB = fileSize ? `${(fileSize / 1024).toFixed(1)} KB` : "unbekannt";
 
     const emailBody = {
       from: "TresorLink <noreply@uploads.tresorlink.de>",
-      to: [ownerEmail],
-      subject: `Neue Datei hochgeladen – ${portalTitle || "Ihr Portal"}`,
+      to: [recipient],
+      subject: `Neue Datei hochgeladen – ${portalTitle || workspaceSlug || "Ihr Portal"}`,
       html: `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; background: #f9fafb; border-radius: 8px;">
           <h2 style="color: #1a1a2e; margin-bottom: 8px;">📁 Neue Datei erhalten</h2>

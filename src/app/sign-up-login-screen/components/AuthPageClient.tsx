@@ -5,7 +5,7 @@ import { useForm } from 'react-hook-form';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
-import { createClient, ensureSessionRestored } from '@/lib/supabase/client';
+import { getAuthenticatedUser } from '@/lib/supabase/auth-helpers';
 import AppLogo from '@/components/ui/AppLogo';
 import {
   Shield,
@@ -92,6 +92,7 @@ export default function AuthPageClient() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const nextPath = searchParams?.get('next') ?? null;
+  const prefilledEmail = searchParams?.get('email') ?? '';
   const { signIn, signUp, user, loading: authLoading } = useAuth();
   const [activeTab, setActiveTab] = useState<'login' | 'register'>('login');
   const [showPassword, setShowPassword] = useState(false);
@@ -101,14 +102,19 @@ export default function AuthPageClient() {
   const [checkingSession, setCheckingSession] = useState(true);
 
   const loginForm = useForm<LoginFormData>({
-    defaultValues: { email: '', password: '', rememberMe: true },
+    defaultValues: { email: prefilledEmail, password: '', rememberMe: true },
   });
 
   useEffect(() => {
+    if (prefilledEmail) {
+      loginForm.setValue('email', prefilledEmail);
+      setActiveTab('login');
+    }
+  }, [prefilledEmail, loginForm]);
+
+  useEffect(() => {
     const checkExistingSession = async () => {
-      await ensureSessionRestored();
-      const supabase = createClient();
-      const { data: { user: currentUser } } = await supabase.auth.getUser();
+      const currentUser = await getAuthenticatedUser();
       if (currentUser) {
         const destination = await resolvePostLoginPath(nextPath);
         router.replace(destination);
@@ -175,12 +181,20 @@ export default function AuthPageClient() {
     setIsLoading(true);
     try {
       await signUp(data.email, data.password, {
-        fullName: data.name,
-        company: data.company,
+        fullName: data.name.trim(),
+        company: data.company.trim(),
       });
       toast.success('Konto erfolgreich erstellt! Bitte wählen Sie Ihren Plan.');
-      // After sign-up, sign them in and redirect to plan selection
       await signIn(data.email, data.password, true);
+      const { createClient } = await import('@/lib/supabase/client');
+      const supabase = createClient();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        await supabase
+          .from('user_profiles')
+          .update({ full_name: data.name.trim(), company: data.company.trim() })
+          .eq('id', user.id);
+      }
       router.push('/choose-plan');
       router.refresh();
     } catch (err: any) {
@@ -239,7 +253,7 @@ export default function AuthPageClient() {
                 key={`trust-${feature.title}`}
                 className="flex items-start gap-4"
               >
-                <div className="w-10 h-10 rounded-lg bg-white/15 border border-white/20 flex items-center justify-center flex-shrink-0">
+                <div className="w-10 h-10 rounded-xl bg-white/15 border border-white/20 flex items-center justify-center flex-shrink-0">
                   <feature.icon size={18} className="text-white" />
                 </div>
                 <div>
@@ -330,7 +344,7 @@ export default function AuthPageClient() {
                     <input
                       type="email"
                       placeholder="name@kanzlei.de"
-                      className={`w-full pl-9 pr-4 py-2.5 text-sm border rounded-lg bg-card text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-all ${
+                      className={`ui-input pl-9 pr-4 bg-card ${
                         loginForm.formState.errors.email
                           ? 'border-danger' :'border-border'
                       }`}
@@ -370,7 +384,7 @@ export default function AuthPageClient() {
                     <input
                       type={showPassword ? 'text' : 'password'}
                       placeholder="••••••••••"
-                      className={`w-full pl-9 pr-10 py-2.5 text-sm border rounded-lg bg-card text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-all ${
+                      className={`ui-input pl-9 pr-10 bg-card ${
                         loginForm.formState.errors.password
                           ? 'border-danger' :'border-border'
                       }`}
@@ -415,7 +429,7 @@ export default function AuthPageClient() {
                 <button
                   type="submit"
                   disabled={isLoading}
-                  className="w-full py-2.5 bg-primary text-primary-foreground text-sm font-semibold rounded-lg hover:bg-primary/90 active:scale-[0.98] transition-all duration-150 flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
+                  className="ui-btn-primary w-full"
                 >
                   {isLoading ? (
                     <>
@@ -452,7 +466,7 @@ export default function AuthPageClient() {
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-foreground mb-1.5">
-                      Vollständiger Name
+                      Vollständiger Name (Vor- und Nachname)
                     </label>
                     <div className="relative">
                       <User
@@ -462,7 +476,7 @@ export default function AuthPageClient() {
                       <input
                         type="text"
                         placeholder="Dr. Max Mustermann"
-                        className={`w-full pl-8 pr-3 py-2.5 text-sm border rounded-lg bg-card text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-all ${
+                        className={`ui-input pl-8 pr-3 bg-card ${
                           registerForm.formState.errors.name
                             ? 'border-danger' :'border-border'
                         }`}
@@ -490,7 +504,7 @@ export default function AuthPageClient() {
                       <input
                         type="text"
                         placeholder="Mustermann GmbH"
-                        className={`w-full pl-8 pr-3 py-2.5 text-sm border rounded-lg bg-card text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-all ${
+                        className={`ui-input pl-8 pr-3 bg-card ${
                           registerForm.formState.errors.company
                             ? 'border-danger' :'border-border'
                         }`}
@@ -519,7 +533,7 @@ export default function AuthPageClient() {
                     <input
                       type="email"
                       placeholder="name@kanzlei.de"
-                      className={`w-full pl-9 pr-4 py-2.5 text-sm border rounded-lg bg-card text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-all ${
+                      className={`ui-input pl-9 pr-4 bg-card ${
                         registerForm.formState.errors.email
                           ? 'border-danger' :'border-border'
                       }`}
@@ -551,7 +565,7 @@ export default function AuthPageClient() {
                     <input
                       type={showPassword ? 'text' : 'password'}
                       placeholder="Min. 8 Zeichen, Groß-/Kleinbuchstaben"
-                      className={`w-full pl-9 pr-10 py-2.5 text-sm border rounded-lg bg-card text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-all ${
+                      className={`ui-input pl-9 pr-10 bg-card ${
                         registerForm.formState.errors.password
                           ? 'border-danger' :'border-border'
                       }`}
@@ -595,7 +609,7 @@ export default function AuthPageClient() {
                     <input
                       type={showConfirmPassword ? 'text' : 'password'}
                       placeholder="Passwort wiederholen"
-                      className={`w-full pl-9 pr-10 py-2.5 text-sm border rounded-lg bg-card text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-all ${
+                      className={`ui-input pl-9 pr-10 bg-card ${
                         registerForm.formState.errors.confirmPassword
                           ? 'border-danger' :'border-border'
                       }`}
@@ -655,7 +669,7 @@ export default function AuthPageClient() {
                 <button
                   type="submit"
                   disabled={isLoading}
-                  className="w-full py-2.5 bg-primary text-primary-foreground text-sm font-semibold rounded-lg hover:bg-primary/90 active:scale-[0.98] transition-all duration-150 flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
+                  className="ui-btn-primary w-full"
                 >
                   {isLoading ? (
                     <>

@@ -61,6 +61,12 @@ serve(async (req) => {
 
         const subscription = await stripe.subscriptions.retrieve(session.subscription as string);
 
+        const { data: existing } = await supabase
+          .from("subscriptions")
+          .select("stripe_subscription_id, plan")
+          .eq("user_id", userId)
+          .maybeSingle();
+
         await supabase.from("subscriptions").upsert(
           {
             user_id: userId,
@@ -76,6 +82,20 @@ serve(async (req) => {
           },
           { onConflict: "user_id" }
         );
+
+        const previousSubId = existing?.stripe_subscription_id;
+        if (
+          previousSubId &&
+          subscription.id &&
+          previousSubId !== subscription.id &&
+          existing.plan !== plan
+        ) {
+          try {
+            await stripe.subscriptions.cancel(previousSubId);
+          } catch (e: any) {
+            console.warn("Could not cancel previous subscription:", e.message);
+          }
+        }
         break;
       }
 
